@@ -1,20 +1,20 @@
 use std::{
-    future,
     marker::PhantomData,
     ops::{Add, Mul},
 };
 
-use crate::{MpcContext, MpcShare};
+use async_trait::async_trait;
+
+use crate::*;
 
 /// Mock context of a computation run on a single node.
-pub struct PlainMpcContext<T> {
+pub struct PlainMpcEngine<T> {
     _phantom: PhantomData<T>,
 }
 
-impl<T> PlainMpcContext<T> {
-    /// Create new mock context.
-    pub fn new() -> PlainMpcContext<T> {
-        PlainMpcContext {
+impl<T> PlainMpcEngine<T> {
+    pub fn new() -> Self {
+        Self {
             _phantom: PhantomData,
         }
     }
@@ -24,13 +24,12 @@ impl<T> PlainMpcContext<T> {
 #[derive(Clone, Copy)]
 pub struct PlainShare<T>(T);
 
-impl<T> MpcContext<T> for PlainMpcContext<T>
+impl<T> MpcContext for PlainMpcEngine<T>
 where
-    T: Copy + Clone + Add<Output = T> + Mul<T, Output = T>,
+    T: Copy + Clone + Add<Output = T> + Mul<Output = T>,
 {
+    type Field = T;
     type Share = PlainShare<T>;
-    type MulOutput = future::Ready<Self::Share>;
-    type OpenOutput = future::Ready<T>;
 
     fn num_parties(&self) -> usize {
         1
@@ -39,27 +38,40 @@ where
     fn party_id(&self) -> usize {
         0
     }
+}
 
-    fn input(&self, id: usize, value: Option<T>) -> Self::Share {
-        if id != 0 {
-            panic!("Invalid party ID");
+#[async_trait]
+impl<T> MpcEngine for PlainMpcEngine<T>
+where
+    T: Copy + Clone + Add<Output = T> + Mul<Output = T> + Send + Sync,
+{
+    async fn process_round(&self, requests: MpcRoundInput<Self>) -> MpcRoundOutput<Self> {
+        MpcRoundOutput {
+            input_responses: requests
+                .input_requests
+                .iter()
+                .map(|r| InputResponse(PlainShare(r.value.unwrap())))
+                .collect(),
+            mul_responses: requests
+                .mul_requests
+                .iter()
+                .map(|r| MulResponse(PlainShare((r.0).0 * (r.1).0)))
+                .collect(),
+            open_responses: requests
+                .open_requests
+                .iter()
+                .map(|r| OpenResponse((r.0).0))
+                .collect(),
         }
-        match value {
-            Some(value) => PlainShare(value),
-            None => panic!("Missing input value"),
-        }
-    }
-
-    fn mul(&self, a: Self::Share, b: Self::Share) -> Self::MulOutput {
-        future::ready(PlainShare(a.0 * b.0))
-    }
-
-    fn open(&self, a: Self::Share) -> Self::OpenOutput {
-        future::ready(a.0)
     }
 }
 
-impl<T> MpcShare<T> for PlainShare<T> where T: Copy + Clone + Add<Output = T> + Mul<Output = T> {}
+impl<T> MpcShare for PlainShare<T>
+where
+    T: Copy + Clone + Add<Output = T> + Mul<Output = T>,
+{
+    type Field = T;
+}
 
 impl<T: Add<Output = T>> Add for PlainShare<T> {
     type Output = PlainShare<T>;

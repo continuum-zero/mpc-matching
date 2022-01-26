@@ -1,44 +1,76 @@
-use std::{
-    future::Future,
-    ops::{Add, Mul},
-};
+use std::ops::{Add, Mul};
+
+use async_trait::async_trait;
 
 pub mod circuits;
+pub mod executor;
 pub mod plaintext;
 
-/// Context of an MPC computation over field `T`.
-/// This interface handles operations that require communication between nodes.
-pub trait MpcContext<T> {
-    /// Concrete Share type that is used by this MPC computation.
-    type Share: MpcShare<T>;
+/// Private share of a field element.
+/// Sharing is linear and supports addition with plaintext field elements without communication.
+pub trait MpcShare:
+    Copy
+    + Clone
+    + Add<Output = Self>
+    + Add<Self::Field, Output = Self>
+    + Mul<Self::Field, Output = Self>
+{
+    /// Field type of value represented by this share.
+    type Field: Copy + Clone + Add<Output = Self::Field> + Mul<Output = Self::Field>;
+}
 
-    /// Future type returned from `mul` (async workaround).
-    type MulOutput: Future<Output = Self::Share>;
+/// MPC computation info.
+pub trait MpcContext {
+    /// Field type used by this MPC protocol.
+    type Field: Copy + Clone + Add<Output = Self::Field> + Mul<Output = Self::Field>;
 
-    /// Future type returned from `open` (async workaround).
-    type OpenOutput: Future<Output = T>;
+    /// Share type used by this MPC protocol.
+    type Share: MpcShare<Field = Self::Field>;
 
     /// Number of parties participating in MPC computation.
     fn num_parties(&self) -> usize;
 
     /// ID of current party.
     fn party_id(&self) -> usize;
-
-    /// Get sharing of next input value of party `id`.
-    /// If `party_id() != id()`, then value must be None.
-    /// If `party_id() == id()`, then plain input value must be provided.
-    /// Doesn't require communication.
-    fn input(&self, id: usize, value: Option<T>) -> Self::Share;
-
-    /// Multiply shared values. Requires communication.
-    fn mul(&self, a: Self::Share, b: Self::Share) -> Self::MulOutput;
-
-    /// Open provided share. Requires communication.
-    fn open(&self, a: Self::Share) -> Self::OpenOutput;
 }
 
-/// Share of value from field `T`. Sharing is linear and supports addition of scalars.
-pub trait MpcShare<T>:
-    Copy + Clone + Add<Output = Self> + Add<T, Output = Self> + Mul<T, Output = Self>
-{
+/// Low-level interface of sharing-based MPC protocol.
+#[async_trait]
+pub trait MpcEngine: MpcContext {
+    async fn process_round(&self, requests: MpcRoundInput<Self>) -> MpcRoundOutput<Self>;
 }
+
+/// Bundle of requests for a single MPC round.
+pub struct MpcRoundInput<E: MpcContext + ?Sized> {
+    pub input_requests: Vec<InputRequest<E>>,
+    pub mul_requests: Vec<MulRequest<E>>,
+    pub open_requests: Vec<OpenRequest<E>>,
+}
+
+/// Bundle of responses from a single MPC round.
+pub struct MpcRoundOutput<E: MpcContext + ?Sized> {
+    pub input_responses: Vec<InputResponse<E>>,
+    pub mul_responses: Vec<MulResponse<E>>,
+    pub open_responses: Vec<OpenResponse<E>>,
+}
+
+#[derive(Clone, Copy)]
+pub struct InputRequest<E: MpcContext + ?Sized> {
+    pub owner: usize,
+    pub value: Option<E::Field>,
+}
+
+#[derive(Clone, Copy)]
+pub struct InputResponse<E: MpcContext + ?Sized>(E::Share);
+
+#[derive(Clone, Copy)]
+pub struct MulRequest<E: MpcContext + ?Sized>(E::Share, E::Share);
+
+#[derive(Clone, Copy)]
+pub struct MulResponse<E: MpcContext + ?Sized>(E::Share);
+
+#[derive(Clone, Copy)]
+pub struct OpenRequest<E: MpcContext + ?Sized>(E::Share);
+
+#[derive(Clone, Copy)]
+pub struct OpenResponse<E: MpcContext + ?Sized>(E::Field);
