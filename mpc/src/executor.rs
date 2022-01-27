@@ -2,78 +2,71 @@ use std::{
     cell::{Cell, RefCell},
     future::Future,
     mem,
+    pin::Pin,
     task::Poll,
 };
 
 use crate::*;
 
-/// MPC circuit executor.
-pub struct MpcExecutor<'a, Engine: MpcEngine> {
-    engine: &'a Engine,
-    input_buffer: RoundCommandBuffer<InputRequest<Engine>, InputResponse<Engine>>,
-    mul_buffer: RoundCommandBuffer<MulRequest<Engine>, MulResponse<Engine>>,
-    open_buffer: RoundCommandBuffer<OpenRequest<Engine>, OpenResponse<Engine>>,
+/// MPC async circuit executor.
+pub struct MpcExecutor<Engine: MpcEngine> {
+    engine: Engine,
 }
 
-impl<'a, Engine: MpcEngine> MpcExecutor<'a, Engine> {
+impl<Engine: MpcEngine> MpcExecutor<Engine> {
+    /// Create new instance.
+    pub fn new(engine: Engine) -> Self {
+        MpcExecutor { engine }
+    }
+
+    /// Execute async circuit.
+    pub async fn run<F>(self, circuit_fn: F)
+    where
+        F: FnOnce(&'_ MpcExecutionContext<Engine>) -> Pin<Box<dyn Future<Output = ()> + '_>>,
+    {
+        let ctx = MpcExecutionContext::new(self.engine);
+        let mut future = circuit_fn(&ctx);
+
+        while futures::poll!(future.as_mut()).is_pending() {
+            let requests = ctx.open_buffer.take_requests();
+            if requests.is_empty() {
+                panic!("Circuit didn't make progress");
+            }
+
+            let responses = ctx.engine.process_openings_bundle(requests).await;
+            ctx.open_buffer.resolve_all(responses);
+        }
+    }
+}
+
+/// MPC async circuit execution context.
+pub struct MpcExecutionContext<Engine: MpcEngine> {
+    engine: Engine,
+    open_buffer: RoundCommandBuffer<Engine::Share, Engine::Field>,
+}
+
+impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     /// Create new MPC circuit executor.
-    pub fn new(engine: &'a Engine) -> Self {
-        MpcExecutor {
+    pub fn new(engine: Engine) -> Self {
+        MpcExecutionContext {
             engine,
-            input_buffer: RoundCommandBuffer::new(),
-            mul_buffer: RoundCommandBuffer::new(),
             open_buffer: RoundCommandBuffer::new(),
         }
     }
 
-    /// Get private share of next input value provided by party `owner`.
-    /// If `party_id() != owner`, then `value` must be None.
-    /// If `party_id() == owner`, then `value` must contain input value.
-    pub async fn input(&self, owner: usize, value: Option<Engine::Field>) -> Engine::Share {
-        self.input_buffer
-            .queue(InputRequest { owner, value })
-            .await
-            .0
-    }
-
-    /// Multiply shared values. Requires communication.
-    pub async fn mul(&self, a: Engine::Share, b: Engine::Share) -> Engine::Share {
-        self.mul_buffer.queue(MulRequest(a, b)).await.0
+    /// Get dealer associated with this computation.
+    pub fn dealer(&self) -> &Engine::Dealer {
+        self.engine.dealer()
     }
 
     /// Open provided share. Requires communication.
-    pub async fn open(&self, a: Engine::Share) -> Engine::Field {
-        self.open_buffer.queue(OpenRequest(a)).await.0
-    }
-
-    /// Execute given async circuit on specified MPC engine.
-    pub async fn run_circuit<T, S, F>(&self, circuit: F) -> T
-    where
-        S: Future<Output = T>,
-        F: FnOnce() -> S,
-    {
-        let mut future = Box::pin(circuit());
-
-        loop {
-            if let Poll::Ready(output) = futures::poll!(future.as_mut()) {
-                return output;
-            }
-
-            let requests = MpcRoundInput {
-                input_requests: self.input_buffer.take_requests(),
-                mul_requests: self.mul_buffer.take_requests(),
-                open_requests: self.open_buffer.take_requests(),
-            };
-
-            let responses = self.engine.process_round(requests).await;
-            self.input_buffer.resolve_all(responses.input_responses);
-            self.mul_buffer.resolve_all(responses.mul_responses);
-            self.open_buffer.resolve_all(responses.open_responses);
-        }
+    /// Warning: Integrity checks may be deferred to output phase (like in SPDZ protocol). Use with care.
+    pub async fn partial_open(&self, input: Engine::Share) -> Engine::Field {
+        self.open_buffer.queue(input).await
     }
 }
 
-impl<'a, Engine: MpcEngine> MpcContext for MpcExecutor<'a, Engine> {
+impl<Engine: MpcEngine> MpcContext for MpcExecutionContext<Engine> {
     type Field = Engine::Field;
     type Share = Engine::Share;
 
@@ -108,11 +101,12 @@ impl<T, S> RoundCommandBuffer<T, S> {
     /// Queue new command and asynchronously wait for response.
     async fn queue(&self, input: T) -> S {
         let index = self.requests.borrow().len();
-        let target_round = self.round_index.get() + 1;
+        let pending_round = self.round_index.get();
+        let ready_round = self.round_index.get().wrapping_add(1);
         self.requests.borrow_mut().push(input);
 
         futures::future::poll_fn(|_| {
-            if self.round_index.get() == target_round {
+            if self.round_index.get() == ready_round {
                 if self.first_unpolled_response.get() != index {
                     panic!("Circuit execution went out of order");
                 }
@@ -123,13 +117,16 @@ impl<T, S> RoundCommandBuffer<T, S> {
                         .expect("Future polled twice"),
                 )
             } else {
+                if self.round_index.get() != pending_round {
+                    panic!("Circuit execution went out of order");
+                }
                 Poll::Pending
             }
         })
         .await
     }
 
-    /// Get requests accumulated during last round.
+    /// Take requests accumulated during last round.
     fn take_requests(&self) -> Vec<T> {
         mem::replace(&mut self.requests.borrow_mut(), Vec::new())
     }
@@ -146,7 +143,7 @@ impl<T, S> RoundCommandBuffer<T, S> {
         requests.clear();
         responses.clear();
         responses.extend(new_responses.into_iter().map(|x| Some(x)));
-        self.round_index.set(self.round_index.get() + 1);
+        self.round_index.set(self.round_index.get().wrapping_add(1));
         self.first_unpolled_response.set(0);
     }
 }

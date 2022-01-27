@@ -1,28 +1,50 @@
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Neg, Sub};
 
 use async_trait::async_trait;
+use num_traits::{One, Zero};
 
 pub mod circuits;
 pub mod executor;
 pub mod plaintext;
+
+/// Marker trait that needs to be implemented on types that represent fields used in MPC computation.
+/// TODO: require inverse
+pub trait MpcField:
+    Copy
+    + Clone
+    + Send
+    + Sync
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Neg<Output = Self>
+    + Mul<Output = Self>
+    + Zero
+    + One
+{
+}
 
 /// Private share of a field element.
 /// Sharing is linear and supports addition with plaintext field elements without communication.
 pub trait MpcShare:
     Copy
     + Clone
+    + Send
+    + Sync
     + Add<Output = Self>
+    + Sub<Output = Self>
+    + Neg<Output = Self>
     + Add<Self::Field, Output = Self>
+    + Sub<Self::Field, Output = Self>
     + Mul<Self::Field, Output = Self>
 {
     /// Field type of value represented by this share.
-    type Field: Copy + Clone + Add<Output = Self::Field> + Mul<Output = Self::Field>;
+    type Field: MpcField;
 }
 
-/// MPC computation info.
+/// Sharing-based MPC computation context.
 pub trait MpcContext {
     /// Field type used by this MPC protocol.
-    type Field: Copy + Clone + Add<Output = Self::Field> + Mul<Output = Self::Field>;
+    type Field: MpcField;
 
     /// Share type used by this MPC protocol.
     type Share: MpcShare<Field = Self::Field>;
@@ -34,43 +56,20 @@ pub trait MpcContext {
     fn party_id(&self) -> usize;
 }
 
+/// Dealer of precomputed parameters for MPC computation.
+pub trait MpcDealer: MpcContext {
+    /// Random sharing of a secret random triple (a, b, c) that satisfies ab = c.
+    fn next_beaver_triple(&self) -> (Self::Share, Self::Share, Self::Share);
+}
+
 /// Low-level interface of sharing-based MPC protocol.
-#[async_trait]
+#[async_trait(?Send)]
 pub trait MpcEngine: MpcContext {
-    async fn process_round(&self, requests: MpcRoundInput<Self>) -> MpcRoundOutput<Self>;
+    type Dealer: MpcDealer<Field = Self::Field, Share = Self::Share>;
+
+    /// Get dealer associated with this computation.
+    fn dealer(&self) -> &Self::Dealer;
+
+    /// Process bundle of partial open requests.
+    async fn process_openings_bundle(&self, requests: Vec<Self::Share>) -> Vec<Self::Field>;
 }
-
-/// Bundle of requests for a single MPC round.
-pub struct MpcRoundInput<E: MpcContext + ?Sized> {
-    pub input_requests: Vec<InputRequest<E>>,
-    pub mul_requests: Vec<MulRequest<E>>,
-    pub open_requests: Vec<OpenRequest<E>>,
-}
-
-/// Bundle of responses from a single MPC round.
-pub struct MpcRoundOutput<E: MpcContext + ?Sized> {
-    pub input_responses: Vec<InputResponse<E>>,
-    pub mul_responses: Vec<MulResponse<E>>,
-    pub open_responses: Vec<OpenResponse<E>>,
-}
-
-#[derive(Clone, Copy)]
-pub struct InputRequest<E: MpcContext + ?Sized> {
-    pub owner: usize,
-    pub value: Option<E::Field>,
-}
-
-#[derive(Clone, Copy)]
-pub struct InputResponse<E: MpcContext + ?Sized>(E::Share);
-
-#[derive(Clone, Copy)]
-pub struct MulRequest<E: MpcContext + ?Sized>(E::Share, E::Share);
-
-#[derive(Clone, Copy)]
-pub struct MulResponse<E: MpcContext + ?Sized>(E::Share);
-
-#[derive(Clone, Copy)]
-pub struct OpenRequest<E: MpcContext + ?Sized>(E::Share);
-
-#[derive(Clone, Copy)]
-pub struct OpenResponse<E: MpcContext + ?Sized>(E::Field);

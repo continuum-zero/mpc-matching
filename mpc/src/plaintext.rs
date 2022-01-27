@@ -1,33 +1,43 @@
 use std::{
+    cell::Cell,
     marker::PhantomData,
     ops::{Add, Mul},
 };
 
 use async_trait::async_trait;
+use rand::{thread_rng, Rng};
 
 use crate::*;
 
-/// Mock context of a computation run on a single node.
-pub struct PlainMpcEngine<T> {
+/// Mock MPC engine that computes result in plain on a single node.
+pub struct MockMpcEngine<T: MpcField> {
     _phantom: PhantomData<T>,
+    num_openings: Cell<usize>,
+    num_rounds: Cell<usize>,
 }
 
-impl<T> PlainMpcEngine<T> {
+impl<T: MpcField> MockMpcEngine<T> {
+    /// Create a new instance of mock.
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
+            num_openings: Cell::new(0),
+            num_rounds: Cell::new(0),
         }
+    }
+
+    /// Get total count of open requests.
+    pub fn num_openings(&self) -> usize {
+        self.num_openings.get()
+    }
+
+    /// Get total number of rounds.
+    pub fn num_rounds(&self) -> usize {
+        self.num_rounds.get()
     }
 }
 
-/// Mock share of a computation run on a single node. Wraps plaintext value.
-#[derive(Clone, Copy)]
-pub struct PlainShare<T>(T);
-
-impl<T> MpcContext for PlainMpcEngine<T>
-where
-    T: Copy + Clone + Add<Output = T> + Mul<Output = T>,
-{
+impl<T: MpcField> MpcContext for MockMpcEngine<T> {
     type Field = T;
     type Share = PlainShare<T>;
 
@@ -40,35 +50,43 @@ where
     }
 }
 
-#[async_trait]
-impl<T> MpcEngine for PlainMpcEngine<T>
+#[async_trait(?Send)]
+impl<T: MpcField> MpcEngine for MockMpcEngine<T>
 where
-    T: Copy + Clone + Add<Output = T> + Mul<Output = T> + Send + Sync,
+    rand::distributions::Standard: rand::prelude::Distribution<Self::Field>,
 {
-    async fn process_round(&self, requests: MpcRoundInput<Self>) -> MpcRoundOutput<Self> {
-        MpcRoundOutput {
-            input_responses: requests
-                .input_requests
-                .iter()
-                .map(|r| InputResponse(PlainShare(r.value.unwrap())))
-                .collect(),
-            mul_responses: requests
-                .mul_requests
-                .iter()
-                .map(|r| MulResponse(PlainShare((r.0).0 * (r.1).0)))
-                .collect(),
-            open_responses: requests
-                .open_requests
-                .iter()
-                .map(|r| OpenResponse((r.0).0))
-                .collect(),
-        }
+    type Dealer = Self;
+
+    fn dealer(&self) -> &Self::Dealer {
+        &self
+    }
+
+    async fn process_openings_bundle(&self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
+        self.num_openings
+            .set(self.num_openings.get() + requests.len());
+        self.num_rounds.set(self.num_rounds.get() + 1);
+        requests.iter().map(|r| r.0).collect()
     }
 }
 
-impl<T> MpcShare for PlainShare<T>
+impl<T: MpcField> MpcDealer for MockMpcEngine<T>
 where
-    T: Copy + Clone + Add<Output = T> + Mul<Output = T>,
+    rand::distributions::Standard: rand::prelude::Distribution<Self::Field>,
+{
+    fn next_beaver_triple(&self) -> (Self::Share, Self::Share, Self::Share) {
+        let a: Self::Field = thread_rng().gen();
+        let b: Self::Field = thread_rng().gen();
+        (PlainShare(a), PlainShare(b), PlainShare(a * b))
+    }
+}
+
+/// Mock share of a computation run on a single node. Wraps plaintext value.
+#[derive(Clone, Copy)]
+pub struct PlainShare<T>(pub T);
+
+impl<T: MpcField> MpcShare for PlainShare<T>
+where
+    T: Copy + Clone + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T>,
 {
     type Field = T;
 }
@@ -80,10 +98,31 @@ impl<T: Add<Output = T>> Add for PlainShare<T> {
     }
 }
 
+impl<T: Sub<Output = T>> Sub for PlainShare<T> {
+    type Output = PlainShare<T>;
+    fn sub(self, rhs: Self) -> Self::Output {
+        PlainShare(self.0 - rhs.0)
+    }
+}
+
 impl<T: Add<Output = T>> Add<T> for PlainShare<T> {
     type Output = PlainShare<T>;
     fn add(self, rhs: T) -> Self::Output {
         PlainShare(self.0 + rhs)
+    }
+}
+
+impl<T: Sub<Output = T>> Sub<T> for PlainShare<T> {
+    type Output = PlainShare<T>;
+    fn sub(self, rhs: T) -> Self::Output {
+        PlainShare(self.0 - rhs)
+    }
+}
+
+impl<T: Neg<Output = T>> Neg for PlainShare<T> {
+    type Output = PlainShare<T>;
+    fn neg(self) -> Self::Output {
+        PlainShare(-self.0)
     }
 }
 
