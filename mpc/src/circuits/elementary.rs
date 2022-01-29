@@ -1,10 +1,8 @@
-use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine};
-
-// TODO: don't use join
+use crate::{executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine};
 
 pub async fn mul<E: MpcEngine>(ctx: &MpcExecutionContext<E>, x: E::Share, y: E::Share) -> E::Share {
     let (a, b, c) = ctx.dealer().next_beaver_triple();
-    let (e, d) = futures::join!(ctx.partial_open(x - a), ctx.partial_open(y - b));
+    let (e, d) = join_circuits!(ctx.partial_open(x - a), ctx.partial_open(y - b));
     c + b * e + a * d + e * d
 }
 
@@ -15,13 +13,13 @@ pub async fn dot_product<E: MpcEngine>(
     c: E::Share,
     d: E::Share,
 ) -> E::Share {
-    let (x, y) = futures::join!(mul(ctx, a, b), mul(ctx, c, d));
+    let (x, y) = join_circuits!(mul(ctx, a, b), mul(ctx, c, d));
     x + y
 }
 
 #[cfg(test)]
 mod tests {
-    use crate::circuits::*;
+    use crate::circuits::elementary::*;
     use crate::executor::MpcExecutor;
     use crate::plaintext::{MockMpcEngine, PlainShare};
 
