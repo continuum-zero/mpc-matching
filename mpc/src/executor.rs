@@ -54,6 +54,11 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
         }
     }
 
+    /// Get underlying MPC engine.
+    pub fn engine(&self) -> &Engine {
+        &self.engine
+    }
+
     /// Get dealer associated with this computation.
     pub fn dealer(&self) -> &Engine::Dealer {
         self.engine.dealer()
