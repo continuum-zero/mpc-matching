@@ -84,6 +84,13 @@ where
     T: Copy + Clone + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T>,
 {
     type Field = T;
+
+    fn from_plain<C>(_ctx: &C, value: Self::Field) -> Self
+    where
+        C: MpcContext<Field = Self::Field, Share = Self>,
+    {
+        PlainShare(value)
+    }
 }
 
 impl<T: Add<Output = T>> Add for PlainShare<T> {

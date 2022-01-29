@@ -22,6 +22,11 @@ pub trait MpcShare:
 {
     /// Field type of value represented by this share.
     type Field: ff::Field;
+
+    /// Create share from public plaintext value.
+    fn from_plain<C>(ctx: &C, value: Self::Field) -> Self
+    where
+        C: MpcContext<Field = Self::Field, Share = Self>;
 }
 
 /// Sharing-based MPC computation context.
