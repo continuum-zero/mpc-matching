@@ -1,27 +1,10 @@
 use std::ops::{Add, Mul, Neg, Sub};
 
 use async_trait::async_trait;
-use num_traits::{One, Zero};
 
 pub mod circuits;
 pub mod executor;
 pub mod plaintext;
-
-/// Marker trait that needs to be implemented on types that represent fields used in MPC computation.
-/// TODO: require inverse
-pub trait MpcField:
-    Copy
-    + Clone
-    + Send
-    + Sync
-    + Add<Output = Self>
-    + Sub<Output = Self>
-    + Neg<Output = Self>
-    + Mul<Output = Self>
-    + Zero
-    + One
-{
-}
 
 /// Private share of a field element.
 /// Sharing is linear and supports addition with plaintext field elements without communication.
@@ -38,13 +21,13 @@ pub trait MpcShare:
     + Mul<Self::Field, Output = Self>
 {
     /// Field type of value represented by this share.
-    type Field: MpcField;
+    type Field: ff::Field;
 }
 
 /// Sharing-based MPC computation context.
 pub trait MpcContext {
     /// Field type used by this MPC protocol.
-    type Field: MpcField;
+    type Field: ff::Field;
 
     /// Share type used by this MPC protocol.
     type Share: MpcShare<Field = Self::Field>;

@@ -5,18 +5,18 @@ use std::{
 };
 
 use async_trait::async_trait;
-use rand::{thread_rng, Rng};
+use rand::thread_rng;
 
 use crate::*;
 
 /// Mock MPC engine that computes result in plain on a single node.
-pub struct MockMpcEngine<T: MpcField> {
+pub struct MockMpcEngine<T: ff::Field> {
     _phantom: PhantomData<T>,
     num_openings: Cell<usize>,
     num_rounds: Cell<usize>,
 }
 
-impl<T: MpcField> MockMpcEngine<T> {
+impl<T: ff::Field> MockMpcEngine<T> {
     /// Create a new instance of mock.
     pub fn new() -> Self {
         Self {
@@ -37,7 +37,7 @@ impl<T: MpcField> MockMpcEngine<T> {
     }
 }
 
-impl<T: MpcField> MpcContext for MockMpcEngine<T> {
+impl<T: ff::Field> MpcContext for MockMpcEngine<T> {
     type Field = T;
     type Share = PlainShare<T>;
 
@@ -51,10 +51,7 @@ impl<T: MpcField> MpcContext for MockMpcEngine<T> {
 }
 
 #[async_trait(?Send)]
-impl<T: MpcField> MpcEngine for MockMpcEngine<T>
-where
-    rand::distributions::Standard: rand::prelude::Distribution<Self::Field>,
-{
+impl<T: ff::Field> MpcEngine for MockMpcEngine<T> {
     type Dealer = Self;
 
     fn dealer(&self) -> &Self::Dealer {
@@ -69,13 +66,11 @@ where
     }
 }
 
-impl<T: MpcField> MpcDealer for MockMpcEngine<T>
-where
-    rand::distributions::Standard: rand::prelude::Distribution<Self::Field>,
-{
+impl<T: ff::Field> MpcDealer for MockMpcEngine<T> {
     fn next_beaver_triple(&self) -> (Self::Share, Self::Share, Self::Share) {
-        let a: Self::Field = thread_rng().gen();
-        let b: Self::Field = thread_rng().gen();
+        let mut rng = thread_rng();
+        let a = Self::Field::random(&mut rng);
+        let b = Self::Field::random(&mut rng);
         (PlainShare(a), PlainShare(b), PlainShare(a * b))
     }
 }
@@ -84,7 +79,7 @@ where
 #[derive(Clone, Copy)]
 pub struct PlainShare<T>(pub T);
 
-impl<T: MpcField> MpcShare for PlainShare<T>
+impl<T: ff::Field> MpcShare for PlainShare<T>
 where
     T: Copy + Clone + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T>,
 {

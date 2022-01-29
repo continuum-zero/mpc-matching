@@ -21,29 +21,30 @@ pub async fn dot_product<E: MpcEngine>(
 
 #[cfg(test)]
 mod tests {
-    use std::num::Wrapping;
-
     use crate::circuits::*;
     use crate::executor::MpcExecutor;
     use crate::plaintext::{MockMpcEngine, PlainShare};
-    use crate::MpcField;
 
-    impl MpcField for Wrapping<u64> {} // TODO: u64 is not a field...
+    #[derive(ff::PrimeField)]
+    #[PrimeFieldModulus = "4611686018427387903"]
+    #[PrimeFieldGenerator = "7"]
+    #[PrimeFieldReprEndianness = "little"]
+    struct Fp([u64; 1]);
 
     #[tokio::test]
     async fn test_linear_fn() {
-        let engine = MockMpcEngine::<Wrapping<u64>>::new();
+        let engine = MockMpcEngine::<Fp>::new();
 
         MpcExecutor::new(engine)
             .run(|ctx| {
                 Box::pin(async {
-                    let a = PlainShare(Wrapping(5u64));
-                    let b = PlainShare(Wrapping(7u64));
-                    let c = PlainShare(Wrapping(3u64));
-                    let d = PlainShare(Wrapping(2u64));
+                    let a = PlainShare(5.into());
+                    let b = PlainShare(7.into());
+                    let c = PlainShare(3.into());
+                    let d = PlainShare(2.into());
                     let result = dot_product(ctx, a, b, c, d).await;
                     let result = ctx.partial_open(result).await;
-                    assert_eq!(result, Wrapping(41));
+                    assert_eq!(result, 41.into());
                 })
             })
             .await;
