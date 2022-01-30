@@ -9,7 +9,7 @@ use super::join_circuits_all;
 pub async fn mul<E: MpcEngine>(ctx: &MpcExecutionContext<E>, x: E::Share, y: E::Share) -> E::Share {
     let (a, b, c) = ctx.engine().dealer().next_beaver_triple();
     let (e, d) = join_circuits!(ctx.open_unchecked(x - a), ctx.open_unchecked(y - b));
-    c + b * e + a * d + e * d
+    c + b * e + a * d + ctx.engine().dealer().share_plain(e * d)
 }
 
 /// Compute product of given sequence of shares.
@@ -21,7 +21,7 @@ pub async fn product<E: MpcEngine>(
     let mut elems: Vec<_> = elems.into_iter().collect();
 
     if elems.is_empty() {
-        return ctx.engine().dealer().zero() + E::Field::one();
+        return ctx.engine().dealer().share_plain(E::Field::one());
     }
 
     while elems.len() > 1 {

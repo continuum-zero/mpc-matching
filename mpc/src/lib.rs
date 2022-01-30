@@ -8,7 +8,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 use async_trait::async_trait;
 
 /// Private share of a field element.
-/// Sharing is linear and supports addition with plaintext field elements without communication.
+/// Sharing is addtive and supports multiplication by scalars without communication.
 pub trait MpcShare:
     Copy
     + Clone
@@ -17,8 +17,6 @@ pub trait MpcShare:
     + Add<Output = Self>
     + Sub<Output = Self>
     + Neg<Output = Self>
-    + Add<Self::Field, Output = Self>
-    + Sub<Self::Field, Output = Self>
     + Mul<Self::Field, Output = Self>
 {
     /// Field type of value represented by this share.
@@ -42,8 +40,8 @@ pub trait MpcContext {
 
 /// Dealer of precomputed parameters for MPC computation.
 pub trait MpcDealer: MpcContext {
-    /// Sharing of zero.
-    fn zero(&self) -> Self::Share;
+    /// Sharing of plaintext element.
+    fn share_plain(&self, x: Self::Field) -> Self::Share;
 
     /// Random sharing of a secret random triple (a, b, c) that satisfies ab = c.
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share);

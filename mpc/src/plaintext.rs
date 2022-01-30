@@ -75,8 +75,8 @@ impl<T: ff::Field> MpcEngine for PlainMpcEngine<T> {
 }
 
 impl<T: ff::Field> MpcDealer for PlainMpcEngine<T> {
-    fn zero(&self) -> Self::Share {
-        PlainShare(T::zero())
+    fn share_plain(&self, x: Self::Field) -> Self::Share {
+        PlainShare(x)
     }
 
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share) {
@@ -106,20 +106,6 @@ impl<T: ff::Field> Sub for PlainShare<T> {
     type Output = PlainShare<T>;
     fn sub(self, rhs: Self) -> Self::Output {
         PlainShare(self.0 - rhs.0)
-    }
-}
-
-impl<T: ff::Field> Add<T> for PlainShare<T> {
-    type Output = PlainShare<T>;
-    fn add(self, rhs: T) -> Self::Output {
-        PlainShare(self.0 + rhs)
-    }
-}
-
-impl<T: ff::Field> Sub<T> for PlainShare<T> {
-    type Output = PlainShare<T>;
-    fn sub(self, rhs: T) -> Self::Output {
-        PlainShare(self.0 - rhs)
     }
 }
 

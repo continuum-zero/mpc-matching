@@ -41,12 +41,14 @@ impl<T: ff::PrimeField> MpcContext for FakeSpdzDealer<T> {
 }
 
 impl<T: ff::PrimeField> MpcDealer for FakeSpdzDealer<T> {
-    fn zero(&self) -> Self::Share {
+    fn share_plain(&self, x: Self::Field) -> Self::Share {
         SpdzShare {
-            value: T::zero(),
-            mac: T::zero(),
-            auth: self.auth_key.share_value,
-            party_id: self.auth_key.party_id,
+            value: if self.auth_key.party_id == 0 {
+                x
+            } else {
+                T::zero()
+            },
+            mac: x * self.auth_key.share_value,
         }
     }
 
@@ -126,8 +128,6 @@ impl<T: ff::PrimeField> FakeShareGenerator<T> {
         SpdzShare {
             value: self.gen_raw_share(value),
             mac: self.gen_raw_share(value * self.auth_key.plain_value),
-            auth: self.auth_key.share_value,
-            party_id: self.auth_key.party_id,
         }
     }
 
