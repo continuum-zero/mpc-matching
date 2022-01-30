@@ -104,10 +104,13 @@ impl<T, S> RoundCommandBuffer<T, S> {
 
     /// Queue new command and asynchronously wait for response.
     async fn queue(&self, input: T) -> S {
-        let index = self.requests.borrow().len();
         let pending_round = self.round_index.get();
-        let ready_round = self.round_index.get().wrapping_add(1);
-        self.requests.borrow_mut().push(input);
+        let ready_round = pending_round.wrapping_add(1);
+        let index = {
+            let mut requests = self.requests.borrow_mut();
+            requests.push(input);
+            requests.len() - 1
+        };
 
         futures::future::poll_fn(|_| {
             if self.round_index.get() == ready_round {
