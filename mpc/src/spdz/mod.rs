@@ -1,7 +1,7 @@
-use crate::MpcDealer;
-
 mod share;
 pub use share::SpdzShare;
+
+use crate::MpcDealer;
 
 /// Dealer of precomputed parameters for SPDZ protocol.
 pub trait SpdzDealer: MpcDealer {

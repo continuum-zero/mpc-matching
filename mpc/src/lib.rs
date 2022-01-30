@@ -1,11 +1,13 @@
+pub mod circuits;
+pub mod plaintext;
+pub mod spdz;
+
+mod executor;
+pub use executor::*;
+
 use std::ops::{Add, Mul, Neg, Sub};
 
 use async_trait::async_trait;
-
-pub mod circuits;
-pub mod executor;
-pub mod plaintext;
-pub mod spdz;
 
 /// Private share of a field element.
 /// Sharing is linear and supports addition with plaintext field elements without communication.
