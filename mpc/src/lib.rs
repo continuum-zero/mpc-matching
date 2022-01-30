@@ -58,6 +58,14 @@ pub trait MpcEngine: MpcContext {
     /// Get dealer associated with this computation.
     fn dealer(&self) -> &Self::Dealer;
 
+    /// Process inputs. Each party provides a vector of its own inputs.
+    /// Returns vector of input shares for each party.
+    async fn process_inputs(&self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>>;
+
     /// Process bundle of partial open requests.
-    async fn process_openings_bundle(&self, requests: Vec<Self::Share>) -> Vec<Self::Field>;
+    /// Warning: Integrity checks may be deferred to output phase (like in SPDZ protocol).
+    async fn process_openings_unchecked(&self, requests: Vec<Self::Share>) -> Vec<Self::Field>;
+
+    /// Process outputs. Performs integrity checks.
+    async fn process_outputs(&self, outputs: Vec<Self::Share>) -> Vec<Self::Field>;
 }

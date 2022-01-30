@@ -8,37 +8,6 @@ use std::{
 
 use crate::*;
 
-/// MPC async circuit executor.
-pub struct MpcExecutor<Engine: MpcEngine> {
-    engine: Engine,
-}
-
-impl<Engine: MpcEngine> MpcExecutor<Engine> {
-    /// Create new instance.
-    pub fn new(engine: Engine) -> Self {
-        MpcExecutor { engine }
-    }
-
-    /// Execute async circuit.
-    pub async fn run<F>(self, circuit_fn: F)
-    where
-        F: FnOnce(&'_ MpcExecutionContext<Engine>) -> Pin<Box<dyn Future<Output = ()> + '_>>,
-    {
-        let ctx = MpcExecutionContext::new(self.engine);
-        let mut future = circuit_fn(&ctx);
-
-        while futures::poll!(future.as_mut()).is_pending() {
-            let requests = ctx.open_buffer.take_requests();
-            if requests.is_empty() {
-                panic!("Circuit didn't make progress");
-            }
-
-            let responses = ctx.engine.process_openings_bundle(requests).await;
-            ctx.open_buffer.resolve_all(responses);
-        }
-    }
-}
-
 /// MPC async circuit execution context.
 pub struct MpcExecutionContext<Engine: MpcEngine> {
     engine: Engine,
@@ -66,7 +35,7 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
 
     /// Open provided share. Requires communication.
     /// Warning: Integrity checks may be deferred to output phase (like in SPDZ protocol). Use with care.
-    pub async fn partial_open(&self, input: Engine::Share) -> Engine::Field {
+    pub async fn open_unchecked(&self, input: Engine::Share) -> Engine::Field {
         self.open_buffer.queue(input).await
     }
 }
@@ -81,6 +50,41 @@ impl<Engine: MpcEngine> MpcContext for MpcExecutionContext<Engine> {
 
     fn party_id(&self) -> usize {
         self.engine.party_id()
+    }
+}
+
+/// Execute async circuit.
+pub async fn run_circuit<Engine, F>(
+    engine: Engine,
+    inputs: &[Engine::Field],
+    circuit_fn: F,
+) -> Vec<Engine::Field>
+where
+    Engine: MpcEngine,
+    F: FnOnce(
+        &'_ MpcExecutionContext<Engine>,
+        Vec<Vec<Engine::Share>>,
+    ) -> Pin<Box<dyn Future<Output = Vec<Engine::Share>> + '_>>,
+{
+    let input_shares = engine
+        .process_inputs(inputs.iter().copied().collect())
+        .await;
+
+    let ctx = MpcExecutionContext::new(engine);
+    let mut future = circuit_fn(&ctx, input_shares);
+
+    loop {
+        if let Poll::Ready(shares_to_open) = futures::poll!(future.as_mut()) {
+            return ctx.engine.process_outputs(shares_to_open).await;
+        }
+
+        let requests = ctx.open_buffer.take_requests();
+        if requests.is_empty() {
+            panic!("Circuit didn't make progress");
+        }
+
+        let responses = ctx.engine.process_openings_unchecked(requests).await;
+        ctx.open_buffer.resolve_all(responses);
     }
 }
 

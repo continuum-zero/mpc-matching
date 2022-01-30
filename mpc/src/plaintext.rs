@@ -58,11 +58,19 @@ impl<T: ff::Field> MpcEngine for MockMpcEngine<T> {
         &self
     }
 
-    async fn process_openings_bundle(&self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
+    async fn process_inputs(&self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>> {
+        vec![inputs.iter().map(|&x| PlainShare(x)).collect()]
+    }
+
+    async fn process_openings_unchecked(&self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
         self.num_openings
             .set(self.num_openings.get() + requests.len());
         self.num_rounds.set(self.num_rounds.get() + 1);
         requests.iter().map(|r| r.0).collect()
+    }
+
+    async fn process_outputs(&self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
+        self.process_openings_unchecked(requests).await
     }
 }
 
