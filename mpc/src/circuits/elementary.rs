@@ -1,6 +1,6 @@
 use ff::Field;
 
-use crate::{executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine, MpcShare};
+use crate::{executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine};
 
 use super::join_circuits_all;
 
@@ -21,7 +21,7 @@ pub async fn product<E: MpcEngine>(
     let mut elems: Vec<_> = elems.into_iter().collect();
 
     if elems.is_empty() {
-        return E::Share::from_plain(ctx, E::Field::one());
+        return ctx.engine().dealer().zero() + E::Field::one();
     }
 
     while elems.len() > 1 {

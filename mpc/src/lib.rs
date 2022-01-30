@@ -5,6 +5,7 @@ use async_trait::async_trait;
 pub mod circuits;
 pub mod executor;
 pub mod plaintext;
+pub mod spdz;
 
 /// Private share of a field element.
 /// Sharing is linear and supports addition with plaintext field elements without communication.
@@ -22,11 +23,6 @@ pub trait MpcShare:
 {
     /// Field type of value represented by this share.
     type Field: ff::Field;
-
-    /// Create share from public plaintext value.
-    fn from_plain<C>(ctx: &C, value: Self::Field) -> Self
-    where
-        C: MpcContext<Field = Self::Field, Share = Self>;
 }
 
 /// Sharing-based MPC computation context.
@@ -46,6 +42,9 @@ pub trait MpcContext {
 
 /// Dealer of precomputed parameters for MPC computation.
 pub trait MpcDealer: MpcContext {
+    /// Sharing of zero.
+    fn zero(&self) -> Self::Share;
+
     /// Random sharing of a secret random triple (a, b, c) that satisfies ab = c.
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share);
 }

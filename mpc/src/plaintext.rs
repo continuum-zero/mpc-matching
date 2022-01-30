@@ -75,6 +75,10 @@ impl<T: ff::Field> MpcEngine for MockMpcEngine<T> {
 }
 
 impl<T: ff::Field> MpcDealer for MockMpcEngine<T> {
+    fn zero(&self) -> Self::Share {
+        PlainShare(T::zero())
+    }
+
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share) {
         let mut rng = thread_rng();
         let a = Self::Field::random(&mut rng);
@@ -87,56 +91,46 @@ impl<T: ff::Field> MpcDealer for MockMpcEngine<T> {
 #[derive(Clone, Copy)]
 pub struct PlainShare<T>(pub T);
 
-impl<T: ff::Field> MpcShare for PlainShare<T>
-where
-    T: Copy + Clone + Add<Output = T> + Sub<Output = T> + Neg<Output = T> + Mul<Output = T>,
-{
+impl<T: ff::Field> MpcShare for PlainShare<T> {
     type Field = T;
-
-    fn from_plain<C>(_ctx: &C, value: Self::Field) -> Self
-    where
-        C: MpcContext<Field = Self::Field, Share = Self>,
-    {
-        PlainShare(value)
-    }
 }
 
-impl<T: Add<Output = T>> Add for PlainShare<T> {
+impl<T: ff::Field> Add for PlainShare<T> {
     type Output = PlainShare<T>;
     fn add(self, rhs: Self) -> Self::Output {
         PlainShare(self.0 + rhs.0)
     }
 }
 
-impl<T: Sub<Output = T>> Sub for PlainShare<T> {
+impl<T: ff::Field> Sub for PlainShare<T> {
     type Output = PlainShare<T>;
     fn sub(self, rhs: Self) -> Self::Output {
         PlainShare(self.0 - rhs.0)
     }
 }
 
-impl<T: Add<Output = T>> Add<T> for PlainShare<T> {
+impl<T: ff::Field> Add<T> for PlainShare<T> {
     type Output = PlainShare<T>;
     fn add(self, rhs: T) -> Self::Output {
         PlainShare(self.0 + rhs)
     }
 }
 
-impl<T: Sub<Output = T>> Sub<T> for PlainShare<T> {
+impl<T: ff::Field> Sub<T> for PlainShare<T> {
     type Output = PlainShare<T>;
     fn sub(self, rhs: T) -> Self::Output {
         PlainShare(self.0 - rhs)
     }
 }
 
-impl<T: Neg<Output = T>> Neg for PlainShare<T> {
+impl<T: ff::Field> Neg for PlainShare<T> {
     type Output = PlainShare<T>;
     fn neg(self) -> Self::Output {
         PlainShare(-self.0)
     }
 }
 
-impl<T: Mul<Output = T>> Mul<T> for PlainShare<T> {
+impl<T: ff::Field> Mul<T> for PlainShare<T> {
     type Output = PlainShare<T>;
     fn mul(self, rhs: T) -> Self::Output {
         PlainShare(self.0 * rhs)
