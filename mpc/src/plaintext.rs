@@ -9,15 +9,15 @@ use rand::thread_rng;
 
 use crate::*;
 
-/// Mock MPC engine that computes result in plain on a single node.
-pub struct MockMpcEngine<T: ff::Field> {
+/// Fake MPC engine that computes result in plain on a single node.
+pub struct PlainMpcEngine<T: ff::Field> {
     _phantom: PhantomData<T>,
     num_openings: Cell<usize>,
     num_rounds: Cell<usize>,
 }
 
-impl<T: ff::Field> MockMpcEngine<T> {
-    /// Create a new instance of mock.
+impl<T: ff::Field> PlainMpcEngine<T> {
+    /// Create new instance.
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
@@ -37,7 +37,7 @@ impl<T: ff::Field> MockMpcEngine<T> {
     }
 }
 
-impl<T: ff::Field> MpcContext for MockMpcEngine<T> {
+impl<T: ff::Field> MpcContext for PlainMpcEngine<T> {
     type Field = T;
     type Share = PlainShare<T>;
 
@@ -51,7 +51,7 @@ impl<T: ff::Field> MpcContext for MockMpcEngine<T> {
 }
 
 #[async_trait(?Send)]
-impl<T: ff::Field> MpcEngine for MockMpcEngine<T> {
+impl<T: ff::Field> MpcEngine for PlainMpcEngine<T> {
     type Dealer = Self;
 
     fn dealer(&mut self) -> &mut Self::Dealer {
@@ -74,7 +74,7 @@ impl<T: ff::Field> MpcEngine for MockMpcEngine<T> {
     }
 }
 
-impl<T: ff::Field> MpcDealer for MockMpcEngine<T> {
+impl<T: ff::Field> MpcDealer for PlainMpcEngine<T> {
     fn zero(&self) -> Self::Share {
         PlainShare(T::zero())
     }

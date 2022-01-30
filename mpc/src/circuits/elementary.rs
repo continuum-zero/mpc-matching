@@ -42,7 +42,7 @@ mod tests {
 
     use crate::circuits::elementary::*;
     use crate::executor::run_circuit;
-    use crate::plaintext::{MockMpcEngine, PlainShare};
+    use crate::plaintext::{PlainMpcEngine, PlainShare};
 
     #[derive(ff::PrimeField)]
     #[PrimeFieldModulus = "4611686018427387903"]
@@ -52,7 +52,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_mul() {
-        run_circuit(MockMpcEngine::<Fp>::new(), &[], |ctx, _| {
+        run_circuit(PlainMpcEngine::<Fp>::new(), &[], |ctx, _| {
             Box::pin(async {
                 let a = PlainShare(1337.into());
                 let b = PlainShare(420.into());
@@ -67,7 +67,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_product() {
-        run_circuit(MockMpcEngine::<Fp>::new(), &[], |ctx, _| {
+        run_circuit(PlainMpcEngine::<Fp>::new(), &[], |ctx, _| {
             Box::pin(async {
                 let elems = [2, 5, 7, 11, 13, 17, 19, 1, 2, 3].map(|x| Fp::from(x));
                 let expected = elems.iter().fold(Fp::one(), |x, y| x * y);
@@ -82,7 +82,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_product_empty_sequence() {
-        run_circuit(MockMpcEngine::<Fp>::new(), &[], |ctx, _| {
+        run_circuit(PlainMpcEngine::<Fp>::new(), &[], |ctx, _| {
             Box::pin(async {
                 let result = product(ctx, iter::empty()).await;
                 let result = ctx.open_unchecked(result).await;
