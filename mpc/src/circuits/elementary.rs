@@ -41,8 +41,8 @@ mod tests {
     use std::iter;
 
     use crate::circuits::elementary::*;
+    use crate::executor::run_circuit;
     use crate::plaintext::{PlainMpcEngine, PlainShare};
-    use crate::run_circuit;
 
     #[derive(ff::PrimeField)]
     #[PrimeFieldModulus = "4611686018427387903"]

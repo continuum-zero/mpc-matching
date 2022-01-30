@@ -1,9 +1,7 @@
 pub mod circuits;
+pub mod executor;
 pub mod plaintext;
 pub mod spdz;
-
-mod executor;
-pub use executor::*;
 
 use std::ops::{Add, Mul, Neg, Sub};
 
