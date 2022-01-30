@@ -7,7 +7,7 @@ use super::join_circuits_all;
 /// Multiply two shared values.
 /// Cost: 1 Beaver triple, 2 partial openings, 1 communication round.
 pub async fn mul<E: MpcEngine>(ctx: &MpcExecutionContext<E>, x: E::Share, y: E::Share) -> E::Share {
-    let (a, b, c) = ctx.dealer().next_beaver_triple();
+    let (a, b, c) = ctx.engine().dealer().next_beaver_triple();
     let (e, d) = join_circuits!(ctx.open_unchecked(x - a), ctx.open_unchecked(y - b));
     c + b * e + a * d + e * d
 }

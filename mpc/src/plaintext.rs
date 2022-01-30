@@ -54,28 +54,28 @@ impl<T: ff::Field> MpcContext for MockMpcEngine<T> {
 impl<T: ff::Field> MpcEngine for MockMpcEngine<T> {
     type Dealer = Self;
 
-    fn dealer(&self) -> &Self::Dealer {
-        &self
+    fn dealer(&mut self) -> &mut Self::Dealer {
+        self
     }
 
-    async fn process_inputs(&self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>> {
+    async fn process_inputs(&mut self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>> {
         vec![inputs.iter().map(|&x| PlainShare(x)).collect()]
     }
 
-    async fn process_openings_unchecked(&self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
+    async fn process_openings_unchecked(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
         self.num_openings
             .set(self.num_openings.get() + requests.len());
         self.num_rounds.set(self.num_rounds.get() + 1);
         requests.iter().map(|r| r.0).collect()
     }
 
-    async fn process_outputs(&self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
+    async fn process_outputs(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
         self.process_openings_unchecked(requests).await
     }
 }
 
 impl<T: ff::Field> MpcDealer for MockMpcEngine<T> {
-    fn next_beaver_triple(&self) -> (Self::Share, Self::Share, Self::Share) {
+    fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share) {
         let mut rng = thread_rng();
         let a = Self::Field::random(&mut rng);
         let b = Self::Field::random(&mut rng);

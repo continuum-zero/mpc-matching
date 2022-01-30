@@ -1,5 +1,5 @@
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Cell, RefCell, RefMut},
     future::Future,
     mem,
     pin::Pin,
@@ -10,7 +10,7 @@ use crate::*;
 
 /// MPC async circuit execution context.
 pub struct MpcExecutionContext<Engine: MpcEngine> {
-    engine: Engine,
+    engine: RefCell<Engine>,
     open_buffer: RoundCommandBuffer<Engine::Share, Engine::Field>,
 }
 
@@ -18,19 +18,14 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     /// Create new MPC circuit executor.
     pub fn new(engine: Engine) -> Self {
         MpcExecutionContext {
-            engine,
+            engine: RefCell::new(engine),
             open_buffer: RoundCommandBuffer::new(),
         }
     }
 
     /// Get underlying MPC engine.
-    pub fn engine(&self) -> &Engine {
-        &self.engine
-    }
-
-    /// Get dealer associated with this computation.
-    pub fn dealer(&self) -> &Engine::Dealer {
-        self.engine.dealer()
+    pub fn engine(&self) -> RefMut<Engine> {
+        self.engine.borrow_mut()
     }
 
     /// Open provided share. Requires communication.
@@ -45,17 +40,17 @@ impl<Engine: MpcEngine> MpcContext for MpcExecutionContext<Engine> {
     type Share = Engine::Share;
 
     fn num_parties(&self) -> usize {
-        self.engine.num_parties()
+        self.engine().num_parties()
     }
 
     fn party_id(&self) -> usize {
-        self.engine.party_id()
+        self.engine().party_id()
     }
 }
 
 /// Execute async circuit.
 pub async fn run_circuit<Engine, F>(
-    engine: Engine,
+    mut engine: Engine,
     inputs: &[Engine::Field],
     circuit_fn: F,
 ) -> Vec<Engine::Field>
@@ -75,7 +70,7 @@ where
 
     loop {
         if let Poll::Ready(shares_to_open) = futures::poll!(future.as_mut()) {
-            return ctx.engine.process_outputs(shares_to_open).await;
+            return ctx.engine().process_outputs(shares_to_open).await;
         }
 
         let requests = ctx.open_buffer.take_requests();
@@ -83,7 +78,7 @@ where
             panic!("Circuit didn't make progress");
         }
 
-        let responses = ctx.engine.process_openings_unchecked(requests).await;
+        let responses = ctx.engine().process_openings_unchecked(requests).await;
         ctx.open_buffer.resolve_all(responses);
     }
 }

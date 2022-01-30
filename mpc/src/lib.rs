@@ -47,7 +47,7 @@ pub trait MpcContext {
 /// Dealer of precomputed parameters for MPC computation.
 pub trait MpcDealer: MpcContext {
     /// Random sharing of a secret random triple (a, b, c) that satisfies ab = c.
-    fn next_beaver_triple(&self) -> (Self::Share, Self::Share, Self::Share);
+    fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share);
 }
 
 /// Low-level interface of sharing-based MPC protocol.
@@ -56,16 +56,16 @@ pub trait MpcEngine: MpcContext {
     type Dealer: MpcDealer<Field = Self::Field, Share = Self::Share>;
 
     /// Get dealer associated with this computation.
-    fn dealer(&self) -> &Self::Dealer;
+    fn dealer(&mut self) -> &mut Self::Dealer;
 
     /// Process inputs. Each party provides a vector of its own inputs.
     /// Returns vector of input shares for each party.
-    async fn process_inputs(&self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>>;
+    async fn process_inputs(&mut self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>>;
 
     /// Process bundle of partial open requests.
     /// Warning: Integrity checks may be deferred to output phase (like in SPDZ protocol).
-    async fn process_openings_unchecked(&self, requests: Vec<Self::Share>) -> Vec<Self::Field>;
+    async fn process_openings_unchecked(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field>;
 
     /// Process outputs. Performs integrity checks.
-    async fn process_outputs(&self, outputs: Vec<Self::Share>) -> Vec<Self::Field>;
+    async fn process_outputs(&mut self, outputs: Vec<Self::Share>) -> Vec<Self::Field>;
 }
