@@ -1,14 +1,16 @@
 use async_trait::async_trait;
 use futures::{Sink, Stream};
 
-use crate::{MpcContext, MpcEngine};
+use crate::{transport::MultipartyTransport, MpcContext, MpcEngine};
 
 use super::{SpdzDealer, SpdzShare};
 
 /// SPDZ protocol message
+#[derive(Clone)]
 pub enum SpdzMessage<T: ff::Field> {
     Input(Vec<T>),
-    PartialOpen(Vec<T>),
+    PartialOpenShares(Vec<T>),
+    PartialOpenSum(Vec<T>),
 }
 
 /// SPDZ protocol implementation.
@@ -16,32 +18,20 @@ pub struct SpdzEngine<T, Dealer, Channel>
 where
     T: ff::Field,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>>,
+    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
 {
-    num_parties: usize,
-    party_id: usize,
     dealer: Dealer,
-    channels: Vec<Option<Channel>>,
+    transport: MultipartyTransport<SpdzMessage<T>, Channel>,
 }
 
 impl<T, Dealer, Channel> SpdzEngine<T, Dealer, Channel>
 where
     T: ff::Field,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>>,
+    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
 {
-    pub fn new(dealer: Dealer, channels: Vec<Option<Channel>>, party_id: usize) -> Self {
-        for (j, channel) in channels.iter().enumerate() {
-            if j != party_id && channel.is_none() {
-                panic!("Channel missing for party {}", j);
-            }
-        }
-        Self {
-            num_parties: channels.len(),
-            party_id,
-            dealer,
-            channels,
-        }
+    pub fn new(dealer: Dealer, transport: MultipartyTransport<SpdzMessage<T>, Channel>) -> Self {
+        Self { dealer, transport }
     }
 }
 
@@ -49,17 +39,17 @@ impl<T, Dealer, Channel> MpcContext for SpdzEngine<T, Dealer, Channel>
 where
     T: ff::Field,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>>,
+    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
 {
     type Field = T;
     type Share = SpdzShare<T>;
 
     fn num_parties(&self) -> usize {
-        self.num_parties
+        self.transport.num_parties()
     }
 
     fn party_id(&self) -> usize {
-        self.party_id
+        self.transport.party_id()
     }
 }
 
@@ -68,7 +58,7 @@ impl<T, Dealer, Channel> MpcEngine for SpdzEngine<T, Dealer, Channel>
 where
     T: ff::Field,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>>,
+    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
 {
     type Dealer = Dealer;
 
@@ -77,14 +67,76 @@ where
     }
 
     async fn process_inputs(&mut self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>> {
-        todo!()
+        let (own_shares, own_deltas): (Vec<_>, Vec<_>) = inputs
+            .into_iter()
+            .map(|x| {
+                let (share, plain) = self.dealer.next_input_mask_own();
+                let delta = x - plain;
+                (share + self.dealer.share_plain(delta), delta)
+            })
+            .unzip();
+
+        self.transport
+            .send_to_all(SpdzMessage::Input(own_deltas))
+            .await
+            .unwrap();
+
+        let mut shares = vec![Vec::new(); self.num_parties()];
+        shares[self.party_id()] = own_shares;
+
+        for (other_id, msg) in self.transport.receive_from_all().await.unwrap() {
+            if let SpdzMessage::Input(deltas) = msg {
+                shares[other_id] = deltas
+                    .into_iter()
+                    .map(|delta| {
+                        let share = self.dealer.next_input_mask_for(other_id);
+                        share + self.dealer.share_plain(delta)
+                    })
+                    .collect();
+            } else {
+                panic!("Unexpected message");
+            }
+        }
+
+        shares
     }
 
     async fn process_openings_unchecked(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
-        todo!()
+        let mut values: Vec<_> = requests.into_iter().map(|x| x.value).collect();
+
+        if self.party_id() == 0 {
+            for (_, msg) in self.transport.receive_from_all().await.unwrap() {
+                if let SpdzMessage::PartialOpenShares(parts) = msg {
+                    if parts.len() != values.len() {
+                        panic!("Number of shares mismatched");
+                    }
+                    for (i, part) in parts.into_iter().enumerate() {
+                        values[i] += part;
+                    }
+                } else {
+                    panic!("Unexpected message");
+                }
+            }
+            self.transport
+                .send_to_all(SpdzMessage::PartialOpenSum(values.clone()))
+                .await
+                .unwrap();
+            values
+        } else {
+            self.transport
+                .send_to(0, SpdzMessage::PartialOpenShares(values))
+                .await
+                .unwrap();
+            let msg = self.transport.receive_from(0).await.unwrap();
+            if let SpdzMessage::PartialOpenSum(values) = msg {
+                values
+            } else {
+                panic!("Unexpected message");
+            }
+        }
     }
 
     async fn process_outputs(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
-        todo!()
+        self.process_openings_unchecked(requests).await
     }
 }

@@ -9,7 +9,7 @@ use super::{SpdzDealer, SpdzShare};
 pub struct FakeSpdzDealer<T: ff::PrimeField> {
     auth_key: FakeAuthKey<T>,
     beaver_triple_gen: FakeShareGenerator<T>,
-    input_seeds_gen: Vec<FakeShareGenerator<T>>,
+    input_masks_gen: Vec<FakeShareGenerator<T>>,
 }
 
 impl<T: ff::PrimeField> FakeSpdzDealer<T> {
@@ -20,7 +20,7 @@ impl<T: ff::PrimeField> FakeSpdzDealer<T> {
         Self {
             auth_key,
             beaver_triple_gen: FakeShareGenerator::new(auth_key, rng.gen()),
-            input_seeds_gen: (0..num_parties)
+            input_masks_gen: (0..num_parties)
                 .map(|_| FakeShareGenerator::new(auth_key, rng.gen()))
                 .collect(),
         }
@@ -67,12 +67,12 @@ impl<T: ff::PrimeField> SpdzDealer for FakeSpdzDealer<T> {
         self.auth_key.share_value
     }
 
-    fn next_input_seed_own(&mut self) -> (Self::Share, Self::Field) {
-        self.input_seeds_gen[self.auth_key.party_id].gen_random_authenticated_share()
+    fn next_input_mask_own(&mut self) -> (Self::Share, Self::Field) {
+        self.input_masks_gen[self.auth_key.party_id].gen_random_authenticated_share()
     }
 
-    fn next_input_seed_for(&mut self, id: usize) -> Self::Share {
-        self.input_seeds_gen[id].gen_random_authenticated_share().0
+    fn next_input_mask_for(&mut self, id: usize) -> Self::Share {
+        self.input_masks_gen[id].gen_random_authenticated_share().0
     }
 }
 

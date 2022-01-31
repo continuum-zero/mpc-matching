@@ -2,6 +2,7 @@ pub mod circuits;
 pub mod executor;
 pub mod plaintext;
 pub mod spdz;
+pub mod transport;
 
 use std::ops::{Add, Mul, Neg, Sub};
 
