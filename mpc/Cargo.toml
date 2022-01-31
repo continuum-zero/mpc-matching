@@ -8,7 +8,7 @@ async-trait = "0.1.52"
 ff = { version = "0.11", features = ["derive"] }
 futures = "0.3.19"
 rand = { version = "0.8.4", features = ["small_rng"] }
-serde = "1.0.136"
+serde = { version = "1.0.136", features = ["derive"] }
 tokio = { version = "1.15.0", features = ["full"] }
 tokio-serde = { version = "0.8.0", features = ["bincode"] }
 tokio-util = { version = "0.6.9", features = ["codec"] }

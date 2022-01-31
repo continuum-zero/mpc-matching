@@ -1,5 +1,6 @@
 use async_trait::async_trait;
 use futures::{Sink, Stream};
+use serde::{Deserialize, Serialize};
 
 use crate::{transport::MultipartyTransport, MpcContext, MpcEngine};
 
@@ -8,7 +9,7 @@ use super::{SpdzDealer, SpdzShare};
 // TODO: proper error handling
 
 /// SPDZ protocol message
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum SpdzMessage<T> {
     Input(Vec<T>),
     PartialOpenShares(Vec<T>),
@@ -67,15 +68,16 @@ where
             })
             .unzip();
 
-        self.transport
-            .send_to_all(SpdzMessage::Input(own_deltas))
+        let received_messages = self
+            .transport
+            .exchange_with_all(SpdzMessage::Input(own_deltas))
             .await
             .unwrap();
 
         let mut shares = vec![Vec::new(); self.num_parties()];
         shares[self.party_id()] = own_shares;
 
-        for (other_id, msg) in self.transport.receive_from_all().await.unwrap() {
+        for (other_id, msg) in received_messages {
             if let SpdzMessage::Input(deltas) = msg {
                 shares[other_id] = deltas
                     .into_iter()
@@ -129,5 +131,77 @@ where
 
     async fn process_outputs(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
         self.process_openings_unchecked(requests).await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::pin::Pin;
+
+    use futures::{stream::FuturesUnordered, Future, StreamExt};
+    use serde::{Deserialize, Serialize};
+
+    use crate::{
+        circuits::{self, join_circuits_all},
+        executor::{self, MpcExecutionContext},
+        spdz::{FakeSpdzDealer, SpdzShare},
+        transport::{self, BincodeDuplex},
+    };
+
+    use super::{SpdzEngine, SpdzMessage};
+
+    #[derive(ff::PrimeField, Serialize, Deserialize)]
+    #[PrimeFieldModulus = "4611686018427387903"]
+    #[PrimeFieldGenerator = "7"]
+    #[PrimeFieldReprEndianness = "little"]
+    struct Fp([u64; 1]);
+
+    type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, BincodeDuplex<SpdzMessage<Fp>>>;
+
+    async fn run_spdz<F>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> Vec<Fp>
+    where
+        F: Copy
+            + Fn(
+                &'_ MpcExecutionContext<MockSpdzEngine>,
+                Vec<Vec<SpdzShare<Fp>>>,
+            ) -> Pin<Box<dyn Future<Output = Vec<SpdzShare<Fp>>> + '_>>,
+    {
+        let num_parties = inputs.len();
+        let channel_matrix = transport::mock_multiparty_channels(num_parties, 512);
+        let futures = FuturesUnordered::new();
+
+        for (party_id, transport) in channel_matrix.into_iter().enumerate() {
+            let dealer = FakeSpdzDealer::new(num_parties, party_id, 123);
+            let engine = MockSpdzEngine::new(dealer, transport);
+            futures.push(executor::run_circuit(engine, &inputs[party_id], circuit_fn));
+        }
+
+        let outputs: Vec<_> = futures.collect().await;
+        for i in 1..num_parties {
+            assert_eq!(outputs[i], outputs[0], "Mismatched outputs",);
+        }
+        outputs.into_iter().next().unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_spdz() {
+        let outputs = run_spdz(
+            vec![
+                vec![1.into(), 2.into(), 3.into()],
+                vec![4.into(), 5.into(), 6.into()],
+                vec![7.into(), 8.into(), 9.into()],
+            ],
+            |ctx, inputs| {
+                Box::pin(async move {
+                    let num_elems = inputs[0].len();
+                    join_circuits_all((0..num_elems).map(|i| {
+                        circuits::elementary::product(ctx, inputs.iter().map(move |x| x[i]))
+                    }))
+                    .await
+                })
+            },
+        )
+        .await;
+        assert_eq!(outputs, vec![28.into(), 80.into(), 162.into()]);
     }
 }
