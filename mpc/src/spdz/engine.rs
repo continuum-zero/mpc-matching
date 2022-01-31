@@ -23,6 +23,7 @@ pub struct SpdzEngine<T, Dealer, Channel> {
 }
 
 impl<T, Dealer, Channel> SpdzEngine<T, Dealer, Channel> {
+    /// Create SPDZ protocol engine.
     pub fn new(dealer: Dealer, transport: MultipartyTransport<SpdzMessage<T>, Channel>) -> Self {
         Self { dealer, transport }
     }

@@ -83,7 +83,7 @@ where
     }
 }
 
-/// Buffer for accumulating commands issues by async circuit.
+/// Buffer for accumulating commands issued by async circuit.
 struct RoundCommandBuffer<T, S> {
     requests: RefCell<Vec<T>>,
     responses: RefCell<Vec<Option<S>>>,

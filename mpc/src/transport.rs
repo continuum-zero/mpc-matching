@@ -24,7 +24,7 @@ impl<T, Channel> MultipartyTransport<T, Channel>
 where
     Channel: Stream + Sink<T>,
 {
-    /// Create new instance.
+    /// Create wrapper for given list of channels. All channels but party_id should be present.
     pub fn new(channels: impl IntoIterator<Item = Option<Channel>>, party_id: usize) -> Self {
         let channels: Vec<_> = channels.into_iter().map(|x| x.map(|x| x.split())).collect();
         for (j, channel) in channels.iter().enumerate() {
@@ -144,12 +144,15 @@ where
     }
 }
 
+/// Length-framed Bincode-encoded messages channel.
 pub type BincodeStreamSink<T, C> =
     tokio_serde::Framed<tokio_util::codec::Framed<C, LengthDelimitedCodec>, T, T, Bincode<T, T>>;
 
+/// Length-framed Bincode-encoded tokio's Duplex stream.
 pub type BincodeDuplex<T> = BincodeStreamSink<T, DuplexStream>;
 
-pub fn wrap_channel<T, C>(channel: C) -> BincodeStreamSink<T, C>
+/// Create length-framed Bincode-encoded message channel from AsyncRead/Write.
+pub fn wrap_bincode<T, C>(channel: C) -> BincodeStreamSink<T, C>
 where
     C: AsyncRead + AsyncWrite,
 {
@@ -157,14 +160,16 @@ where
     tokio_serde::Framed::new(length_delimited, Bincode::default())
 }
 
+/// Create bidirectional Bincode-encoded channel.
 pub fn bincode_duplex<T>(max_buf_size: usize) -> (BincodeDuplex<T>, BincodeDuplex<T>) {
     let (a, b) = tokio::io::duplex(max_buf_size);
-    (wrap_channel(a), wrap_channel(b))
+    (wrap_bincode(a), wrap_bincode(b))
 }
 
+/// Create in-process channels for testing multiparty protocols.
 pub fn mock_multiparty_channels<T>(
     num_parties: usize,
-    buffer: usize,
+    max_buf_size: usize,
 ) -> Vec<MultipartyTransport<T, BincodeDuplex<T>>>
 where
     T: Clone + Serialize + DeserializeOwned + Unpin,
@@ -175,7 +180,7 @@ where
 
     for i in 0..num_parties {
         for j in 0..i {
-            let (a, b) = bincode_duplex::<T>(buffer);
+            let (a, b) = bincode_duplex::<T>(max_buf_size);
             matrix[i][j] = Some(a);
             matrix[j][i] = Some(b);
         }
