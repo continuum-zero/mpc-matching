@@ -62,7 +62,8 @@ mod tests {
                 vec![]
             })
         })
-        .await;
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -77,7 +78,8 @@ mod tests {
                 vec![]
             })
         })
-        .await;
+        .await
+        .unwrap();
     }
 
     #[tokio::test]
@@ -90,6 +92,7 @@ mod tests {
                 vec![]
             })
         })
-        .await;
+        .await
+        .unwrap();
     }
 }

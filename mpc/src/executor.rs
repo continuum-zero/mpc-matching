@@ -53,7 +53,7 @@ pub async fn run_circuit<Engine, F>(
     mut engine: Engine,
     inputs: &[Engine::Field],
     circuit_fn: F,
-) -> Vec<Engine::Field>
+) -> Result<Vec<Engine::Field>, Engine::Error>
 where
     Engine: MpcEngine,
     F: FnOnce(
@@ -63,7 +63,7 @@ where
 {
     let input_shares = engine
         .process_inputs(inputs.iter().copied().collect())
-        .await;
+        .await?;
 
     let ctx = MpcExecutionContext::new(engine);
     let mut future = circuit_fn(&ctx, input_shares);
@@ -78,7 +78,7 @@ where
             panic!("Circuit didn't make progress");
         }
 
-        let responses = ctx.engine().process_openings_unchecked(requests).await;
+        let responses = ctx.engine().process_openings_unchecked(requests).await?;
         ctx.open_buffer.resolve_all(responses);
     }
 }

@@ -52,18 +52,28 @@ pub trait MpcDealer: MpcContext {
 #[async_trait(?Send)]
 pub trait MpcEngine: MpcContext {
     type Dealer: MpcDealer<Field = Self::Field, Share = Self::Share>;
+    type Error;
 
     /// Get dealer associated with this computation.
     fn dealer(&mut self) -> &mut Self::Dealer;
 
     /// Process inputs. Each party provides a vector of its own inputs.
     /// Returns vector of input shares for each party.
-    async fn process_inputs(&mut self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>>;
+    async fn process_inputs(
+        &mut self,
+        inputs: Vec<Self::Field>,
+    ) -> Result<Vec<Vec<Self::Share>>, Self::Error>;
 
     /// Process bundle of partial open requests.
     /// Warning: Integrity checks may be deferred to output phase (like in SPDZ protocol).
-    async fn process_openings_unchecked(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field>;
+    async fn process_openings_unchecked(
+        &mut self,
+        requests: Vec<Self::Share>,
+    ) -> Result<Vec<Self::Field>, Self::Error>;
 
     /// Process outputs. Performs integrity checks.
-    async fn process_outputs(&mut self, outputs: Vec<Self::Share>) -> Vec<Self::Field>;
+    async fn process_outputs(
+        &mut self,
+        outputs: Vec<Self::Share>,
+    ) -> Result<Vec<Self::Field>, Self::Error>;
 }

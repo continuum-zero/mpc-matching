@@ -2,18 +2,36 @@ use async_trait::async_trait;
 use futures::{Sink, Stream};
 use serde::{Deserialize, Serialize};
 
-use crate::{transport::MultipartyTransport, MpcContext, MpcEngine};
+use crate::{
+    transport::{ChannelError, MultipartyTransport},
+    MpcContext, MpcEngine,
+};
 
 use super::{SpdzDealer, SpdzShare};
 
-// TODO: proper error handling
-
-/// SPDZ protocol message
-#[derive(Clone, Serialize, Deserialize)]
+/// SPDZ protocol message.
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum SpdzMessage<T> {
     Input(Vec<T>),
     PartialOpenShares(Vec<T>),
     PartialOpenSum(Vec<T>),
+}
+
+/// SPDZ error.
+#[derive(Copy, Clone, Debug)]
+pub enum SpdzError {
+    Send,
+    Recv,
+    Protocol(&'static str),
+}
+
+impl From<ChannelError> for SpdzError {
+    fn from(err: ChannelError) -> Self {
+        match err {
+            ChannelError::Send => SpdzError::Send,
+            ChannelError::Recv => SpdzError::Recv,
+        }
+    }
 }
 
 /// SPDZ protocol implementation.
@@ -54,12 +72,16 @@ where
     Channel: Stream<Item = Result<SpdzMessage<T>, E>> + Sink<SpdzMessage<T>> + Unpin,
 {
     type Dealer = Dealer;
+    type Error = SpdzError;
 
     fn dealer(&mut self) -> &mut Self::Dealer {
         &mut self.dealer
     }
 
-    async fn process_inputs(&mut self, inputs: Vec<Self::Field>) -> Vec<Vec<Self::Share>> {
+    async fn process_inputs(
+        &mut self,
+        inputs: Vec<Self::Field>,
+    ) -> Result<Vec<Vec<Self::Share>>, SpdzError> {
         let (own_shares, own_deltas): (Vec<_>, Vec<_>) = inputs
             .into_iter()
             .map(|x| {
@@ -72,8 +94,7 @@ where
         let received_messages = self
             .transport
             .exchange_with_all(SpdzMessage::Input(own_deltas))
-            .await
-            .unwrap();
+            .await?;
 
         let mut shares = vec![Vec::new(); self.num_parties()];
         shares[self.party_id()] = own_shares;
@@ -88,49 +109,57 @@ where
                     })
                     .collect();
             } else {
-                panic!("Unexpected message");
+                return Err(SpdzError::Protocol("Unexpected message"));
             }
         }
 
-        shares
+        Ok(shares)
     }
 
-    async fn process_openings_unchecked(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
+    async fn process_openings_unchecked(
+        &mut self,
+        requests: Vec<Self::Share>,
+    ) -> Result<Vec<Self::Field>, SpdzError> {
         let mut values: Vec<_> = requests.into_iter().map(|x| x.value).collect();
+        let values_count = values.len();
 
         if self.party_id() == 0 {
-            for (_, msg) in self.transport.receive_from_all().await.unwrap() {
+            for (_, msg) in self.transport.receive_from_all().await? {
                 if let SpdzMessage::PartialOpenShares(parts) = msg {
-                    if parts.len() != values.len() {
-                        panic!("Number of shares mismatched");
+                    if parts.len() != values_count {
+                        return Err(SpdzError::Protocol("Received incorrect number of shares"));
                     }
                     for (i, part) in parts.into_iter().enumerate() {
                         values[i] += part;
                     }
                 } else {
-                    panic!("Unexpected message");
+                    return Err(SpdzError::Protocol("Unexpected message"));
                 }
             }
             self.transport
                 .send_to_all(SpdzMessage::PartialOpenSum(values.clone()))
-                .await
-                .unwrap();
-            values
+                .await?;
         } else {
             self.transport
                 .send_to(0, SpdzMessage::PartialOpenShares(values))
-                .await
-                .unwrap();
-            let msg = self.transport.receive_from(0).await.unwrap();
-            if let SpdzMessage::PartialOpenSum(values) = msg {
-                values
+                .await?;
+            if let SpdzMessage::PartialOpenSum(sum) = self.transport.receive_from(0).await? {
+                if sum.len() != values_count {
+                    return Err(SpdzError::Protocol("Received incorrect number of shares"));
+                }
+                values = sum;
             } else {
-                panic!("Unexpected message");
+                return Err(SpdzError::Protocol("Unexpected message"));
             }
         }
+
+        Ok(values)
     }
 
-    async fn process_outputs(&mut self, requests: Vec<Self::Share>) -> Vec<Self::Field> {
+    async fn process_outputs(
+        &mut self,
+        requests: Vec<Self::Share>,
+    ) -> Result<Vec<Self::Field>, SpdzError> {
         self.process_openings_unchecked(requests).await
     }
 }
@@ -177,7 +206,7 @@ mod tests {
             futures.push(executor::run_circuit(engine, &inputs[party_id], circuit_fn));
         }
 
-        let outputs: Vec<_> = futures.collect().await;
+        let outputs: Vec<_> = futures.map(|result| result.unwrap()).collect().await;
         for i in 1..num_parties {
             assert_eq!(outputs[i], outputs[0], "Mismatched outputs",);
         }
