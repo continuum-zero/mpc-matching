@@ -6,7 +6,7 @@ use crate::{MpcContext, MpcDealer};
 use super::{SpdzDealer, SpdzShare};
 
 /// Insecure dealer for SPDZ protocol that can be used for tests.
-pub struct FakeSpdzDealer<T: ff::PrimeField> {
+pub struct FakeSpdzDealer<T> {
     auth_key: FakeAuthKey<T>,
     beaver_triple_gen: FakeShareGenerator<T>,
     input_masks_gen: Vec<FakeShareGenerator<T>>,
@@ -78,7 +78,7 @@ impl<T: ff::PrimeField> SpdzDealer for FakeSpdzDealer<T> {
 
 /// Authentication key in plain and its share.
 #[derive(Copy, Clone)]
-struct FakeAuthKey<T: ff::PrimeField> {
+struct FakeAuthKey<T> {
     num_parties: usize,
     party_id: usize,
     share_value: T,
@@ -99,7 +99,7 @@ impl<T: ff::PrimeField> FakeAuthKey<T> {
 }
 
 /// Insecure generator of SPDZ-shared values.
-struct FakeShareGenerator<T: ff::PrimeField> {
+struct FakeShareGenerator<T> {
     auth_key: FakeAuthKey<T>,
     rng: SmallRng,
 }

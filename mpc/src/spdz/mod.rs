@@ -1,5 +1,5 @@
-// mod engine;
-// pub use engine::{SpdzEngine, SpdzMessage};
+mod engine;
+pub use engine::{SpdzEngine, SpdzMessage};
 
 mod fake_dealer;
 pub use fake_dealer::FakeSpdzDealer;

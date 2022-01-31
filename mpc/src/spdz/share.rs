@@ -4,7 +4,7 @@ use crate::MpcShare;
 
 /// Value share in SPDZ protocol.
 #[derive(Copy, Clone)]
-pub struct SpdzShare<T: ff::Field> {
+pub struct SpdzShare<T> {
     pub(super) value: T,
     pub(super) mac: T,
 }

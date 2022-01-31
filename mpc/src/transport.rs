@@ -20,10 +20,9 @@ pub struct MultipartyTransport<T, Channel> {
     party_id: usize,
 }
 
-impl<T, E, Channel> MultipartyTransport<T, Channel>
+impl<T, Channel> MultipartyTransport<T, Channel>
 where
-    T: Clone,
-    Channel: Stream<Item = Result<T, E>> + Sink<T> + Unpin,
+    Channel: Stream + Sink<T>,
 {
     /// Create new instance.
     pub fn new(channels: impl IntoIterator<Item = Option<Channel>>, party_id: usize) -> Self {
@@ -35,7 +34,9 @@ where
         }
         Self { channels, party_id }
     }
+}
 
+impl<T, Channel> MultipartyTransport<T, Channel> {
     /// Number of parties participating in multi-party protocol.
     pub fn num_parties(&self) -> usize {
         self.channels.len()
@@ -45,7 +46,13 @@ where
     pub fn party_id(&self) -> usize {
         self.party_id
     }
+}
 
+impl<T, E, Channel> MultipartyTransport<T, Channel>
+where
+    T: Clone,
+    Channel: Stream<Item = Result<T, E>> + Sink<T> + Unpin,
+{
     /// Send message to party with given ID.
     pub async fn send_to(&mut self, other_id: usize, msg: T) -> Result<(), ChannelError> {
         if other_id == self.party_id {

@@ -10,13 +10,13 @@ use rand::thread_rng;
 use crate::*;
 
 /// Fake MPC engine that computes result in plain on a single node.
-pub struct PlainMpcEngine<T: ff::Field> {
+pub struct PlainMpcEngine<T> {
     _phantom: PhantomData<T>,
     num_openings: Cell<usize>,
     num_rounds: Cell<usize>,
 }
 
-impl<T: ff::Field> PlainMpcEngine<T> {
+impl<T> PlainMpcEngine<T> {
     /// Create new instance.
     pub fn new() -> Self {
         Self {

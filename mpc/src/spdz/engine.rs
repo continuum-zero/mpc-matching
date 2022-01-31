@@ -5,31 +5,23 @@ use crate::{transport::MultipartyTransport, MpcContext, MpcEngine};
 
 use super::{SpdzDealer, SpdzShare};
 
+// TODO: proper error handling
+
 /// SPDZ protocol message
 #[derive(Clone)]
-pub enum SpdzMessage<T: ff::Field> {
+pub enum SpdzMessage<T> {
     Input(Vec<T>),
     PartialOpenShares(Vec<T>),
     PartialOpenSum(Vec<T>),
 }
 
 /// SPDZ protocol implementation.
-pub struct SpdzEngine<T, Dealer, Channel>
-where
-    T: ff::Field,
-    Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
-{
+pub struct SpdzEngine<T, Dealer, Channel> {
     dealer: Dealer,
     transport: MultipartyTransport<SpdzMessage<T>, Channel>,
 }
 
-impl<T, Dealer, Channel> SpdzEngine<T, Dealer, Channel>
-where
-    T: ff::Field,
-    Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
-{
+impl<T, Dealer, Channel> SpdzEngine<T, Dealer, Channel> {
     pub fn new(dealer: Dealer, transport: MultipartyTransport<SpdzMessage<T>, Channel>) -> Self {
         Self { dealer, transport }
     }
@@ -39,7 +31,6 @@ impl<T, Dealer, Channel> MpcContext for SpdzEngine<T, Dealer, Channel>
 where
     T: ff::Field,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
 {
     type Field = T;
     type Share = SpdzShare<T>;
@@ -54,11 +45,11 @@ where
 }
 
 #[async_trait(?Send)]
-impl<T, Dealer, Channel> MpcEngine for SpdzEngine<T, Dealer, Channel>
+impl<T, E, Dealer, Channel> MpcEngine for SpdzEngine<T, Dealer, Channel>
 where
     T: ff::Field,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
-    Channel: Stream<Item = SpdzMessage<T>> + Sink<SpdzMessage<T>> + Unpin,
+    Channel: Stream<Item = Result<SpdzMessage<T>, E>> + Sink<SpdzMessage<T>> + Unpin,
 {
     type Dealer = Dealer;
 
