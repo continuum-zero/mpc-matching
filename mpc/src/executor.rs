@@ -135,7 +135,7 @@ impl<T, S> RoundCommandBuffer<T, S> {
 
     /// Take requests accumulated during last round.
     fn take_requests(&self) -> Vec<T> {
-        mem::replace(&mut self.requests.borrow_mut(), Vec::new())
+        mem::take(&mut self.requests.borrow_mut())
     }
 
     /// Resolve all requests issued during last round.
