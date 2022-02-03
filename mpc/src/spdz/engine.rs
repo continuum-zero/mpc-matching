@@ -156,11 +156,9 @@ where
         Ok(values)
     }
 
-    async fn process_outputs(
-        &mut self,
-        requests: Vec<Self::Share>,
-    ) -> Result<Vec<Self::Field>, SpdzError> {
-        self.process_openings_unchecked(requests).await
+    async fn check_integrity(&mut self) -> Result<(), Self::Error> {
+        // TODO
+        Ok(())
     }
 }
 

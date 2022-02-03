@@ -12,6 +12,7 @@ use crate::*;
 pub struct MpcExecutionContext<Engine: MpcEngine> {
     engine: RefCell<Engine>,
     open_buffer: RoundCommandBuffer<Engine::Share, Engine::Field>,
+    force_integrity_check: Cell<bool>,
 }
 
 impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
@@ -20,6 +21,7 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
         MpcExecutionContext {
             engine: RefCell::new(engine),
             open_buffer: RoundCommandBuffer::new(),
+            force_integrity_check: Cell::new(false),
         }
     }
 
@@ -29,9 +31,15 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     }
 
     /// Open provided share. Requires communication.
-    /// Warning: Integrity checks may be deferred to output phase (like in SPDZ protocol). Use with care.
+    /// Warning: Integrity checks may be deferred (like in SPDZ protocol). Use with care.
     pub async fn open_unchecked(&self, input: Engine::Share) -> Engine::Field {
         self.open_buffer.queue(input).await
+    }
+
+    /// Ensure integrity of everything computed so far.
+    /// The check will be executed at the beginning of next round.
+    pub fn ensure_integrity(&self) {
+        self.force_integrity_check.set(true);
     }
 }
 
@@ -70,7 +78,18 @@ where
 
     loop {
         if let Poll::Ready(shares_to_open) = futures::poll!(future.as_mut()) {
-            return ctx.engine().process_outputs(shares_to_open).await;
+            ctx.engine().check_integrity().await?;
+            let outputs = ctx
+                .engine()
+                .process_openings_unchecked(shares_to_open)
+                .await?;
+            ctx.engine().check_integrity().await?;
+            return Ok(outputs);
+        }
+
+        if ctx.force_integrity_check.get() {
+            ctx.engine().check_integrity().await?;
+            ctx.force_integrity_check.set(false);
         }
 
         let requests = ctx.open_buffer.take_requests();

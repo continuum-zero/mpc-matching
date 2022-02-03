@@ -76,11 +76,9 @@ impl<T: ff::Field> MpcEngine for PlainMpcEngine<T> {
         Ok(requests.iter().map(|r| r.0).collect())
     }
 
-    async fn process_outputs(
-        &mut self,
-        requests: Vec<Self::Share>,
-    ) -> Result<Vec<Self::Field>, ()> {
-        self.process_openings_unchecked(requests).await
+    async fn check_integrity(&mut self) -> Result<(), Self::Error> {
+        // Nothing to do here.
+        Ok(())
     }
 }
 

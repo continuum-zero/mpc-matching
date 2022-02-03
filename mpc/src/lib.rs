@@ -66,15 +66,12 @@ pub trait MpcEngine: MpcContext {
     ) -> Result<Vec<Vec<Self::Share>>, Self::Error>;
 
     /// Process bundle of partial open requests.
-    /// Warning: Integrity checks may be deferred to output phase (like in SPDZ protocol).
+    /// Warning: Integrity checks may be deferred.
     async fn process_openings_unchecked(
         &mut self,
         requests: Vec<Self::Share>,
     ) -> Result<Vec<Self::Field>, Self::Error>;
 
-    /// Process outputs. Performs integrity checks.
-    async fn process_outputs(
-        &mut self,
-        outputs: Vec<Self::Share>,
-    ) -> Result<Vec<Self::Field>, Self::Error>;
+    /// Check integrity of everything computed so far.
+    async fn check_integrity(&mut self) -> Result<(), Self::Error>;
 }
