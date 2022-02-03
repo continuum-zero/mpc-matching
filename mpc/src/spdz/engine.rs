@@ -169,7 +169,6 @@ mod tests {
     use std::pin::Pin;
 
     use futures::{stream::FuturesUnordered, Future, StreamExt};
-    use serde::{Deserialize, Serialize};
 
     use crate::{
         circuits::{self, join_circuits_all},
@@ -180,12 +179,7 @@ mod tests {
 
     use super::{SpdzEngine, SpdzMessage};
 
-    #[derive(ff::PrimeField, Serialize, Deserialize)]
-    #[PrimeFieldModulus = "4611686018427387903"]
-    #[PrimeFieldGenerator = "7"]
-    #[PrimeFieldReprEndianness = "little"]
-    struct Fp([u64; 1]);
-
+    type Fp = crate::fields::Mersenne127;
     type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, BincodeDuplex<SpdzMessage<Fp>>>;
 
     async fn run_spdz<F>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> Vec<Fp>

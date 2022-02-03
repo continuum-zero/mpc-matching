@@ -1,5 +1,6 @@
 pub mod circuits;
 pub mod executor;
+pub mod fields;
 pub mod plaintext;
 pub mod spdz;
 pub mod transport;

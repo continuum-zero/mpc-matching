@@ -44,11 +44,7 @@ mod tests {
     use crate::executor::run_circuit;
     use crate::plaintext::{PlainMpcEngine, PlainShare};
 
-    #[derive(ff::PrimeField)]
-    #[PrimeFieldModulus = "4611686018427387903"]
-    #[PrimeFieldGenerator = "7"]
-    #[PrimeFieldReprEndianness = "little"]
-    struct Fp([u64; 1]);
+    type Fp = crate::fields::Mersenne127;
 
     #[tokio::test]
     async fn test_mul() {
