@@ -14,7 +14,7 @@ pub enum ChannelError {
     Recv,
 }
 
-/// Wrapper for connections in multi-party protocol.
+/// Wrapper for peer-to-peer connections in multi-party protocol.
 pub struct MultipartyTransport<T, Channel> {
     channels: Vec<Option<(SplitSink<Channel, T>, SplitStream<Channel>)>>,
     party_id: usize,
@@ -24,8 +24,10 @@ impl<T, Channel> MultipartyTransport<T, Channel>
 where
     Channel: Stream + Sink<T>,
 {
-    /// Create wrapper for given list of channels. All channels but party_id should be present.
+    /// Create wrapper for given list of connections. All channels but party_id should be present.
     pub fn new(channels: impl IntoIterator<Item = Option<Channel>>, party_id: usize) -> Self {
+        // We split streams into unidirectional halves. This allows us to
+        // asynchronously wait on both receives and sends without bothering borrow checker.
         let channels: Vec<_> = channels.into_iter().map(|x| x.map(|x| x.split())).collect();
         for (j, channel) in channels.iter().enumerate() {
             if j != party_id && channel.is_none() {
@@ -58,13 +60,8 @@ where
         if other_id == self.party_id {
             panic!("Cannot send message on loopback");
         }
-        self.channels[other_id]
-            .as_mut()
-            .unwrap()
-            .0
-            .send(msg)
-            .await
-            .map_err(|_| ChannelError::Send)
+        let (sink, _) = self.channels[other_id].as_mut().unwrap();
+        sink.send(msg).await.map_err(|_| ChannelError::Send)
     }
 
     /// Receive message from party wit given ID.
@@ -72,15 +69,11 @@ where
         if other_id == self.party_id {
             panic!("Cannot receive message on loopback");
         }
-        self.channels[other_id]
-            .as_mut()
-            .unwrap()
-            .1
-            .next()
-            .await
-            .map_or(Err(ChannelError::Recv), |x| {
-                x.map_err(|_| ChannelError::Recv)
-            })
+        let (_, stream) = self.channels[other_id].as_mut().unwrap();
+        match stream.next().await {
+            Some(Ok(msg)) => Ok(msg),
+            _ => Err(ChannelError::Recv),
+        }
     }
 
     /// Send message to all parties.
@@ -90,7 +83,10 @@ where
                 .iter_mut()
                 .enumerate()
                 .filter(|(id, _)| *id != self.party_id)
-                .map(|(_, channel)| channel.as_mut().unwrap().0.send(msg.clone())),
+                .map(|(_, channel)| {
+                    let (sink, _) = channel.as_mut().unwrap();
+                    sink.send(msg.clone())
+                }),
         )
         .await
         .map_or(Err(ChannelError::Send), |_| Ok(()))
@@ -104,16 +100,13 @@ where
                 .enumerate()
                 .filter(|(id, _)| *id != self.party_id)
                 .map(|(id, channel)| {
-                    channel
-                        .as_mut()
-                        .unwrap()
-                        .1
-                        .next()
-                        .then(move |raw| async move {
-                            raw.map_or(Err(ChannelError::Recv), |x| {
-                                x.map_or(Err(ChannelError::Recv), |x| Ok((id, x)))
-                            })
-                        })
+                    let (_, stream) = channel.as_mut().unwrap();
+                    stream.next().then(move |raw| async move {
+                        match raw {
+                            Some(Ok(msg)) => Ok((id, msg)),
+                            _ => Err(ChannelError::Recv),
+                        }
+                    })
                 }),
         )
         .await
@@ -132,12 +125,13 @@ where
                         .send(msg.clone())
                         .then(|x| async { x.map_err(|_| ChannelError::Send) });
                     let recv_future = stream.next().then(move |raw| async move {
-                        raw.map_or(Err(ChannelError::Recv), |x| {
-                            x.map_or(Err(ChannelError::Recv), |x| Ok((id, x)))
-                        })
+                        match raw {
+                            Some(Ok(msg)) => Ok((id, msg)),
+                            _ => Err(ChannelError::Recv),
+                        }
                     });
                     futures::future::try_join(send_future, recv_future)
-                        .and_then(|(_, in_msg)| async { Ok(in_msg) })
+                        .and_then(|(_, received_msg)| async { Ok(received_msg) })
                 }),
         )
         .await
