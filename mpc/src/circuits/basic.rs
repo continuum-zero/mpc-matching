@@ -21,7 +21,7 @@ pub async fn product<E: MpcEngine>(
     let mut elems: Vec<_> = elems.into_iter().collect();
 
     if elems.is_empty() {
-        return ctx.engine().dealer().share_plain(E::Field::one());
+        return ctx.engine().dealer().share_plain(Field::one());
     }
 
     while elems.len() > 1 {
@@ -40,9 +40,10 @@ pub async fn product<E: MpcEngine>(
 mod tests {
     use std::iter;
 
-    use crate::circuits::elementary::*;
+    use crate::circuits::*;
     use crate::executor::run_circuit;
     use crate::plaintext::{PlainMpcEngine, PlainShare};
+    use ff::Field;
 
     type Fp = crate::fields::Mersenne127;
 

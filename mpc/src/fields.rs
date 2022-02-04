@@ -3,7 +3,7 @@ mod mersenne_61 {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     /// Finite field mod 2^61-1.
-    #[derive(ff::PrimeField)]
+    #[derive(PrimeField)]
     #[PrimeFieldModulus = "4611686018427387903"]
     #[PrimeFieldGenerator = "37"]
     #[PrimeFieldReprEndianness = "little"]
@@ -29,7 +29,7 @@ mod mersenne_127 {
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
     /// Finite field mod 2^127-1.
-    #[derive(ff::PrimeField)]
+    #[derive(PrimeField)]
     #[PrimeFieldModulus = "170141183460469231731687303715884105727"]
     #[PrimeFieldGenerator = "43"]
     #[PrimeFieldReprEndianness = "little"]

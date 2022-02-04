@@ -381,9 +381,10 @@ mod tests {
             |ctx, inputs| {
                 Box::pin(async move {
                     let num_elems = inputs[0].len();
-                    join_circuits_all((0..num_elems).map(|i| {
-                        circuits::elementary::product(ctx, inputs.iter().map(move |x| x[i]))
-                    }))
+                    join_circuits_all(
+                        (0..num_elems)
+                            .map(|i| circuits::product(ctx, inputs.iter().map(move |x| x[i]))),
+                    )
                     .await
                 })
             },
