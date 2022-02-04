@@ -1,0 +1,9 @@
+[package]
+name = "mpc_test_app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+futures = "0.3.19"
+mpc = { path = "../mpc" }
+tokio = { version = "1.15.0", features = ["full"] }

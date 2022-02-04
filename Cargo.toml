@@ -2,4 +2,8 @@
 
 members = [
     "mpc",
+    "mpc_test_app",
 ]
+
+[profile.release]
+debug = 1
