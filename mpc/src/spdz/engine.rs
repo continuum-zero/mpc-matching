@@ -13,17 +13,24 @@ use crate::{
 
 use super::{SpdzDealer, SpdzDigest, SpdzDigestOutput, SpdzRng, SpdzShare};
 
-const BATCH_CHECK_FREQUENCY: usize = 50000;
+/// Threshold of collected partial openings that triggers integrity checking.
+const BATCH_CHECK_THRESHOLD: usize = 20000;
+
+/// Maximum number of values that can be checked using a single polynomial hash.
+const MAX_BATCH_CHECK_SIZE: usize = 40000;
+
+/// Salt for commitments.
+type CommitmentSalt = [u8; 32];
 
 /// SPDZ protocol message.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]
 pub enum SpdzMessage<T> {
+    MaskedInputs(Vec<T>),
+    SharesExchange(Vec<T>),
+    ShareSumExchange(Vec<T>),
     StateHashCheck(SpdzDigestOutput),
     Commitment(SpdzDigestOutput),
-    RevealCommitment(T, SpdzDigestOutput),
-    MaskedInputs(Vec<T>),
-    PartialOpenShares(Vec<T>),
-    PartialOpenSum(Vec<T>),
+    Decommitment(T, CommitmentSalt),
 }
 
 /// SPDZ error.
@@ -34,11 +41,6 @@ pub enum SpdzError {
     Protocol(&'static str),
 }
 
-struct PartiallyOpenedValue<T> {
-    plain_value: T,
-    mac_share: T,
-}
-
 impl From<ChannelError> for SpdzError {
     fn from(err: ChannelError) -> Self {
         match err {
@@ -46,6 +48,12 @@ impl From<ChannelError> for SpdzError {
             ChannelError::Recv => SpdzError::Recv,
         }
     }
+}
+
+/// Saved opened value for batch MAC checking.
+struct PartiallyOpenedValue<T> {
+    plain_value: T,
+    mac_share: T,
 }
 
 /// SPDZ protocol implementation.
@@ -146,7 +154,7 @@ where
                 self.state_digest.update(x.to_repr());
             }
         }
-        self.check_state_hash().await?;
+        self.check_state_hashes().await?;
         Ok(all_shares)
     }
 
@@ -159,7 +167,7 @@ where
 
         if self.party_id() == 0 {
             for (_, msg) in self.transport.receive_from_all().await? {
-                if let SpdzMessage::PartialOpenShares(parts) = msg {
+                if let SpdzMessage::SharesExchange(parts) = msg {
                     if parts.len() != values_count {
                         return Err(SpdzError::Protocol("Received incorrect number of shares"));
                     }
@@ -171,17 +179,17 @@ where
                 }
             }
             self.transport
-                .send_to_all(SpdzMessage::PartialOpenSum(values.clone()))
+                .send_to_all(SpdzMessage::ShareSumExchange(values.clone()))
                 .await?;
         } else {
             self.transport
-                .send_to(0, SpdzMessage::PartialOpenShares(values))
+                .send_to(0, SpdzMessage::SharesExchange(values))
                 .await?;
-            if let SpdzMessage::PartialOpenSum(sum) = self.transport.receive_from(0).await? {
-                if sum.len() != values_count {
-                    return Err(SpdzError::Protocol("Received incorrect number of shares"));
+            if let SpdzMessage::ShareSumExchange(sums) = self.transport.receive_from(0).await? {
+                if sums.len() != values_count {
+                    return Err(SpdzError::Protocol("Received incorrect number of values"));
                 }
-                values = sum;
+                values = sums;
             } else {
                 return Err(SpdzError::Protocol("Unexpected message"));
             }
@@ -196,30 +204,35 @@ where
                 }
             }));
 
-        if self.opened_values.len() >= BATCH_CHECK_FREQUENCY {
+        if self.opened_values.len() >= BATCH_CHECK_THRESHOLD {
             self.check_integrity().await?;
         }
         Ok(values)
     }
 
     async fn check_integrity(&mut self) -> Result<(), Self::Error> {
-        let opened = mem::take(&mut self.opened_values);
-        let root = self.gen_common_random_element().await?;
+        let opened_values = mem::take(&mut self.opened_values);
 
-        let plain_value = polynomial_eval(opened.iter().map(|x| x.plain_value), root);
-        let mac_share = polynomial_eval(opened.iter().map(|x| x.mac_share), root);
-        let check_share = mac_share - plain_value * self.dealer().authentication_key_share();
+        for chunk in opened_values.chunks(MAX_BATCH_CHECK_SIZE) {
+            let root = self.gen_common_random_element().await?;
 
-        let shares = self.exchange_with_commitment(check_share).await?;
-        let check_plain = shares.into_iter().fold(T::zero(), |acc, x| acc + x);
+            let plain_value = polynomial_eval(chunk.iter().map(|x| x.plain_value), root);
+            let mac_share = polynomial_eval(chunk.iter().map(|x| x.mac_share), root);
+            let check_share = mac_share - plain_value * self.dealer().authentication_key_share();
 
-        if check_plain != T::zero() {
-            return Err(SpdzError::Protocol("MAC check failed"));
+            let shares = self.exchange_with_commitment(check_share).await?;
+            let check_plain = shares.into_iter().fold(T::zero(), |acc, x| acc + x);
+
+            if check_plain != T::zero() {
+                return Err(SpdzError::Protocol("MAC check failed"));
+            }
+
+            // Ensure broadcasted values were consistent by including their combination in state hash.
+            self.state_digest.update(plain_value.to_repr());
         }
 
         // Check consistency of all broadcasts since last check.
-        self.state_digest.update(plain_value.to_repr()); // Broadcasts of opened values are included here.
-        self.check_state_hash().await
+        self.check_state_hashes().await
     }
 }
 
@@ -230,7 +243,7 @@ where
     Channel: Stream<Item = Result<SpdzMessage<T>, E>> + Sink<SpdzMessage<T>> + Unpin,
 {
     /// Check if state hashes of all nodes are the same.
-    async fn check_state_hash(&mut self) -> Result<(), SpdzError> {
+    async fn check_state_hashes(&mut self) -> Result<(), SpdzError> {
         let state_hash = self.state_digest.finalize_reset().into();
         let msg = SpdzMessage::StateHashCheck(state_hash);
         let received = self.transport.exchange_with_all(msg.clone()).await?;
@@ -248,14 +261,10 @@ where
         Ok(all_seeds.into_iter().fold(T::zero(), |acc, x| acc + x))
     }
 
-    /// Commit to field element and exchange them. Broadcast consistency checking is deferred.
+    /// Commit to field elements and exchange them. Broadcast consistency checking is deferred.
     async fn exchange_with_commitment(&mut self, elem: T) -> Result<Vec<T>, SpdzError> {
-        let own_salt: [u8; 32] = self.rng.gen();
-        let own_hash = SpdzDigest::new()
-            .chain_update(own_salt)
-            .chain_update(elem.to_repr())
-            .finalize()
-            .into();
+        let own_salt: CommitmentSalt = self.rng.gen();
+        let own_hash = commit_value(elem, own_salt);
 
         let received_messages = self
             .transport
@@ -273,26 +282,22 @@ where
             }
         }
 
-        // Update state digest, we need to check later if broadcast was consistent.
+        // Update state digest, we need to ensure later if broadcasts were consistent.
         for hash in &all_hashes {
             self.state_digest.update(hash);
         }
 
         let received_messages = self
             .transport
-            .exchange_with_all(SpdzMessage::RevealCommitment(elem, own_salt))
+            .exchange_with_all(SpdzMessage::Decommitment(elem, own_salt))
             .await?;
 
         let mut all_elems = vec![Default::default(); self.num_parties()];
         all_elems[self.party_id()] = elem;
 
         for (other_id, msg) in received_messages {
-            if let SpdzMessage::RevealCommitment(other_elem, other_salt) = msg {
-                let other_hash: SpdzDigestOutput = SpdzDigest::new()
-                    .chain_update(other_salt)
-                    .chain_update(other_elem.to_repr())
-                    .finalize()
-                    .into();
+            if let SpdzMessage::Decommitment(other_elem, other_salt) = msg {
+                let other_hash = commit_value(other_elem, other_salt);
                 if all_hashes[other_id] != other_hash {
                     return Err(SpdzError::Protocol("Commitment hash mismatch"));
                 }
@@ -304,6 +309,15 @@ where
 
         Ok(all_elems)
     }
+}
+
+/// Commit to a value with given salt.
+fn commit_value<T: ff::PrimeField>(value: T, salt: CommitmentSalt) -> SpdzDigestOutput {
+    SpdzDigest::new()
+        .chain_update(salt)
+        .chain_update(value.to_repr())
+        .finalize()
+        .into()
 }
 
 // Evaluate polynomial over field.
