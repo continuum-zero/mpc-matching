@@ -18,7 +18,8 @@ mod mersenne_61 {
     impl<'de> Deserialize<'de> for Mersenne61 {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
             let repr = Mersenne61Repr(Deserialize::deserialize(deserializer)?);
-            Self::from_repr_vartime(repr).ok_or(serde::de::Error::custom("Invalid field element"))
+            Self::from_repr_vartime(repr)
+                .ok_or_else(|| serde::de::Error::custom("Invalid field element"))
         }
     }
 }
@@ -43,7 +44,8 @@ mod mersenne_127 {
     impl<'de> Deserialize<'de> for Mersenne127 {
         fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
             let repr = Mersenne127Repr(Deserialize::deserialize(deserializer)?);
-            Self::from_repr_vartime(repr).ok_or(serde::de::Error::custom("Invalid field element"))
+            Self::from_repr_vartime(repr)
+                .ok_or_else(|| serde::de::Error::custom("Invalid field element"))
         }
     }
 }
