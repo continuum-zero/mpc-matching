@@ -50,6 +50,9 @@ pub trait MpcDealer: MpcContext {
 
     /// Random sharing of a secret random triple (a, b, c) that satisfies ab = c.
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share);
+
+    /// Random sharing of a secret random bit.
+    fn next_bit(&mut self) -> Self::Share;
 }
 
 /// Low-level interface of sharing-based MPC protocol.

@@ -5,7 +5,7 @@ use std::{
 };
 
 use async_trait::async_trait;
-use rand::thread_rng;
+use rand::{prelude::SmallRng, Rng, SeedableRng};
 
 use crate::*;
 
@@ -14,6 +14,7 @@ pub struct PlainMpcEngine<T> {
     _phantom: PhantomData<T>,
     num_openings: Cell<usize>,
     num_rounds: Cell<usize>,
+    rng: SmallRng,
 }
 
 impl<T> PlainMpcEngine<T> {
@@ -23,6 +24,7 @@ impl<T> PlainMpcEngine<T> {
             _phantom: PhantomData,
             num_openings: Cell::new(0),
             num_rounds: Cell::new(0),
+            rng: SmallRng::from_entropy(),
         }
     }
 
@@ -88,10 +90,17 @@ impl<T: ff::Field> MpcDealer for PlainMpcEngine<T> {
     }
 
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share) {
-        let mut rng = thread_rng();
-        let a = Self::Field::random(&mut rng);
-        let b = Self::Field::random(&mut rng);
+        let a = Self::Field::random(&mut self.rng);
+        let b = Self::Field::random(&mut self.rng);
         (PlainShare(a), PlainShare(b), PlainShare(a * b))
+    }
+
+    fn next_bit(&mut self) -> Self::Share {
+        PlainShare(if self.rng.gen() {
+            Self::Field::one()
+        } else {
+            Self::Field::zero()
+        })
     }
 }
 

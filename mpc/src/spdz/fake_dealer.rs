@@ -9,6 +9,7 @@ use super::{SpdzDealer, SpdzShare};
 pub struct FakeSpdzDealer<T> {
     auth_key: FakeAuthKey<T>,
     beaver_triple_gen: FakeShareGenerator<T>,
+    bits_gen: FakeShareGenerator<T>,
     input_masks_gen: Vec<FakeShareGenerator<T>>,
 }
 
@@ -20,6 +21,7 @@ impl<T: ff::PrimeField> FakeSpdzDealer<T> {
         Self {
             auth_key,
             beaver_triple_gen: FakeShareGenerator::new(auth_key, rng.gen()),
+            bits_gen: FakeShareGenerator::new(auth_key, rng.gen()),
             input_masks_gen: (0..num_parties)
                 .map(|_| FakeShareGenerator::new(auth_key, rng.gen()))
                 .collect(),
@@ -59,6 +61,15 @@ impl<T: ff::PrimeField> MpcDealer for FakeSpdzDealer<T> {
             .beaver_triple_gen
             .gen_authenticated_share(a_plain * b_plain);
         (a_share, b_share, c_share)
+    }
+
+    fn next_bit(&mut self) -> Self::Share {
+        let value = if self.bits_gen.rng().gen() {
+            Self::Field::one()
+        } else {
+            Self::Field::zero()
+        };
+        self.bits_gen.gen_authenticated_share(value)
     }
 }
 
@@ -111,6 +122,11 @@ impl<T: ff::PrimeField> FakeShareGenerator<T> {
             rng: SmallRng::from_seed(seed),
             auth_key,
         }
+    }
+
+    /// Get underlying random number generator.
+    fn rng(&mut self) -> &mut impl Rng {
+        &mut self.rng
     }
 
     /// Generate local unauthenticated share of specified value.
