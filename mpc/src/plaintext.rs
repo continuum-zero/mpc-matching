@@ -101,6 +101,10 @@ pub struct PlainShare<T>(pub T);
 
 impl<T: ff::Field> MpcShare for PlainShare<T> {
     type Field = T;
+
+    fn double(&self) -> Self {
+        PlainShare(self.0.double())
+    }
 }
 
 impl<T: ff::Field> Add for PlainShare<T> {

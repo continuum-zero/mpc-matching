@@ -11,6 +11,13 @@ pub struct SpdzShare<T> {
 
 impl<T: ff::Field> MpcShare for SpdzShare<T> {
     type Field = T;
+
+    fn double(&self) -> Self {
+        SpdzShare {
+            value: self.value.double(),
+            mac: self.mac.double(),
+        }
+    }
 }
 
 impl<T: ff::Field> Add for SpdzShare<T> {

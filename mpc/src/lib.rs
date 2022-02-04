@@ -23,6 +23,9 @@ pub trait MpcShare:
 {
     /// Field type of value represented by this share.
     type Field: ff::Field;
+
+    /// Multiply share by two.
+    fn double(&self) -> Self;
 }
 
 /// Sharing-based MPC computation context.
