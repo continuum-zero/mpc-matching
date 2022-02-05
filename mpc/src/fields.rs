@@ -1,11 +1,5 @@
-/// Conversion into small integer types by truncating.
-pub trait IntoTruncated<T> {
-    /// Truncate value and convert it.
-    fn into_truncated(&self) -> T;
-}
-
-/// Fields that support embedding of N-bit integers.
-pub trait IntEmbeddable: From<u64> + IntoTruncated<u64> {
+/// Prime field that can be used in MPC computation.
+pub trait MpcField: ff::PrimeField + IntoTruncated<u64> {
     /// Largest k such that 2^(k+1) doesn't overflow.
     const SAFE_BITS: usize;
 
@@ -14,6 +8,12 @@ pub trait IntEmbeddable: From<u64> + IntoTruncated<u64> {
 
     /// Returns preprocessed inverse of 2^k. Panics if k >= SAFE_BITS.
     fn power_of_two_inverse(k: usize) -> Self;
+}
+
+/// Conversion into smaller integer type with truncation.
+pub trait IntoTruncated<T> {
+    /// Convert with truncation.
+    fn into_truncated(&self) -> T;
 }
 
 /// Precomputed powers of two and their inverses.
@@ -39,7 +39,7 @@ mod mersenne_61 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{IntEmbeddable, IntoTruncated, PowersOfTwo};
+    use super::{IntoTruncated, MpcField, PowersOfTwo};
 
     /// Finite field mod 2^61-1.
     #[derive(PrimeField)]
@@ -49,7 +49,29 @@ mod mersenne_61 {
     pub struct Mersenne61([u64; 1]);
 
     #[static_init::dynamic]
-    static POWERS_OF_TWO: PowersOfTwo<Mersenne61, 59> = PowersOfTwo::precompute();
+    static POWERS_OF_TWO: PowersOfTwo<Mersenne61, { Mersenne61::SAFE_BITS }> =
+        PowersOfTwo::precompute();
+
+    impl MpcField for Mersenne61 {
+        const SAFE_BITS: usize = 59;
+
+        fn power_of_two(k: usize) -> Self {
+            POWERS_OF_TWO.powers[k]
+        }
+
+        fn power_of_two_inverse(k: usize) -> Self {
+            POWERS_OF_TWO.inverses[k]
+        }
+    }
+
+    impl IntoTruncated<u64> for Mersenne61 {
+        fn into_truncated(&self) -> u64 {
+            // ff::PrimeField stores value multiplied by constant.
+            // We can invert it by multiplying with element that has representation [1].
+            const R2_INV: Mersenne61 = Mersenne61([1]);
+            (*self * R2_INV).0[0]
+        }
+    }
 
     impl Serialize for Mersenne61 {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -65,27 +87,6 @@ mod mersenne_61 {
         }
     }
 
-    impl IntoTruncated<u64> for Mersenne61 {
-        fn into_truncated(&self) -> u64 {
-            // ff::PrimeField stores value multiplied by constant.
-            // We can invert it by multiplying with element that has representation [1].
-            const R2_INV: Mersenne61 = Mersenne61([1]);
-            (*self * R2_INV).0[0]
-        }
-    }
-
-    impl IntEmbeddable for Mersenne61 {
-        const SAFE_BITS: usize = 59;
-
-        fn power_of_two(k: usize) -> Self {
-            POWERS_OF_TWO.powers[k]
-        }
-
-        fn power_of_two_inverse(k: usize) -> Self {
-            POWERS_OF_TWO.inverses[k]
-        }
-    }
-
     #[cfg(test)]
     mod tests {
         use crate::fields::IntoTruncated;
@@ -93,7 +94,7 @@ mod mersenne_61 {
         use super::Mersenne61;
 
         #[test]
-        fn serialization() {
+        fn test_serialization() {
             let value = Mersenne61::from(123456789012345678);
             let encoded = bincode::serialize(&value).unwrap();
             let decoded = bincode::deserialize(&encoded).unwrap();
@@ -101,7 +102,7 @@ mod mersenne_61 {
         }
 
         #[test]
-        fn truncation() {
+        fn test_truncation() {
             let int_value = 123456789012345678;
             let field_value = Mersenne61::from(int_value);
             let trunc_value = field_value.into_truncated();
@@ -114,7 +115,7 @@ mod mersenne_127 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{IntEmbeddable, IntoTruncated, PowersOfTwo};
+    use super::{IntoTruncated, MpcField, PowersOfTwo};
 
     /// Finite field mod 2^127-1.
     #[derive(PrimeField)]
@@ -124,7 +125,30 @@ mod mersenne_127 {
     pub struct Mersenne127([u64; 2]);
 
     #[static_init::dynamic]
-    static POWERS_OF_TWO: PowersOfTwo<Mersenne127, 125> = PowersOfTwo::precompute();
+    static POWERS_OF_TWO: PowersOfTwo<Mersenne127, { Mersenne127::SAFE_BITS }> =
+        PowersOfTwo::precompute();
+
+    impl MpcField for Mersenne127 {
+        const SAFE_BITS: usize = 125;
+
+        fn power_of_two(k: usize) -> Self {
+            POWERS_OF_TWO.powers[k]
+        }
+
+        fn power_of_two_inverse(k: usize) -> Self {
+            POWERS_OF_TWO.inverses[k]
+        }
+    }
+
+    impl IntoTruncated<u64> for Mersenne127 {
+        fn into_truncated(&self) -> u64 {
+            // ff::PrimeField stores value multiplied by constant.
+            // We can invert it by multiplying with element that has representation [1, 0].
+            // Lower limb represents the first 64 bits (little endian).
+            const R2_INV: Mersenne127 = Mersenne127([1, 0]);
+            (*self * R2_INV).0[0]
+        }
+    }
 
     impl Serialize for Mersenne127 {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -140,28 +164,6 @@ mod mersenne_127 {
         }
     }
 
-    impl IntoTruncated<u64> for Mersenne127 {
-        fn into_truncated(&self) -> u64 {
-            // ff::PrimeField stores value multiplied by constant.
-            // We can invert it by multiplying with element that has representation [1, 0].
-            // Lower limb represents the first 64 bits (little endian).
-            const R2_INV: Mersenne127 = Mersenne127([1, 0]);
-            (*self * R2_INV).0[0]
-        }
-    }
-
-    impl IntEmbeddable for Mersenne127 {
-        const SAFE_BITS: usize = 125;
-
-        fn power_of_two(k: usize) -> Self {
-            POWERS_OF_TWO.powers[k]
-        }
-
-        fn power_of_two_inverse(k: usize) -> Self {
-            POWERS_OF_TWO.inverses[k]
-        }
-    }
-
     #[cfg(test)]
     mod tests {
         use ff::PrimeField;
@@ -171,7 +173,7 @@ mod mersenne_127 {
         use super::Mersenne127;
 
         #[test]
-        fn serialization() {
+        fn test_serialization() {
             let value = Mersenne127::from_str_vartime("1234567890123456789012345678901").unwrap();
             let encoded = bincode::serialize(&value).unwrap();
             let decoded = bincode::deserialize(&encoded).unwrap();
@@ -179,7 +181,7 @@ mod mersenne_127 {
         }
 
         #[test]
-        fn truncation() {
+        fn test_truncation() {
             let value = Mersenne127::from_str_vartime("1234567890123456789012345678901").unwrap();
             let trunc_value = value.into_truncated();
             assert_eq!(trunc_value, 11711269222405794869);

@@ -39,7 +39,7 @@ impl<T> PlainMpcEngine<T> {
     }
 }
 
-impl<T: ff::Field> MpcContext for PlainMpcEngine<T> {
+impl<T: MpcField> MpcContext for PlainMpcEngine<T> {
     type Field = T;
     type Share = PlainShare<T>;
 
@@ -53,7 +53,7 @@ impl<T: ff::Field> MpcContext for PlainMpcEngine<T> {
 }
 
 #[async_trait(?Send)]
-impl<T: ff::Field> MpcEngine for PlainMpcEngine<T> {
+impl<T: MpcField> MpcEngine for PlainMpcEngine<T> {
     type Dealer = Self;
     type Error = ();
 
@@ -84,7 +84,7 @@ impl<T: ff::Field> MpcEngine for PlainMpcEngine<T> {
     }
 }
 
-impl<T: ff::Field> MpcDealer for PlainMpcEngine<T> {
+impl<T: MpcField> MpcDealer for PlainMpcEngine<T> {
     fn share_plain(&self, x: Self::Field) -> Self::Share {
         PlainShare(x)
     }
@@ -108,7 +108,7 @@ impl<T: ff::Field> MpcDealer for PlainMpcEngine<T> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlainShare<T>(pub T);
 
-impl<T: ff::Field> MpcShare for PlainShare<T> {
+impl<T: MpcField> MpcShare for PlainShare<T> {
     type Field = T;
 
     fn zero() -> Self {
@@ -120,28 +120,28 @@ impl<T: ff::Field> MpcShare for PlainShare<T> {
     }
 }
 
-impl<T: ff::Field> Add for PlainShare<T> {
+impl<T: MpcField> Add for PlainShare<T> {
     type Output = PlainShare<T>;
     fn add(self, rhs: Self) -> Self::Output {
         PlainShare(self.0 + rhs.0)
     }
 }
 
-impl<T: ff::Field> Sub for PlainShare<T> {
+impl<T: MpcField> Sub for PlainShare<T> {
     type Output = PlainShare<T>;
     fn sub(self, rhs: Self) -> Self::Output {
         PlainShare(self.0 - rhs.0)
     }
 }
 
-impl<T: ff::Field> Neg for PlainShare<T> {
+impl<T: MpcField> Neg for PlainShare<T> {
     type Output = PlainShare<T>;
     fn neg(self) -> Self::Output {
         PlainShare(-self.0)
     }
 }
 
-impl<T: ff::Field> Mul<T> for PlainShare<T> {
+impl<T: MpcField> Mul<T> for PlainShare<T> {
     type Output = PlainShare<T>;
     fn mul(self, rhs: T) -> Self::Output {
         PlainShare(self.0 * rhs)

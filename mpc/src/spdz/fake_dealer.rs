@@ -1,6 +1,7 @@
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
+use crate::fields::MpcField;
 use crate::{MpcContext, MpcDealer};
 
 use super::{SpdzDealer, SpdzShare};
@@ -13,7 +14,7 @@ pub struct FakeSpdzDealer<T> {
     input_masks_gen: Vec<FakeShareGenerator<T>>,
 }
 
-impl<T: ff::PrimeField> FakeSpdzDealer<T> {
+impl<T: MpcField> FakeSpdzDealer<T> {
     /// Create new instance.
     pub fn new(num_parties: usize, party_id: usize, seed: u8) -> Self {
         let mut rng = SmallRng::from_seed([seed; 32]);
@@ -29,7 +30,7 @@ impl<T: ff::PrimeField> FakeSpdzDealer<T> {
     }
 }
 
-impl<T: ff::PrimeField> MpcContext for FakeSpdzDealer<T> {
+impl<T: MpcField> MpcContext for FakeSpdzDealer<T> {
     type Field = T;
     type Share = SpdzShare<T>;
 
@@ -42,7 +43,7 @@ impl<T: ff::PrimeField> MpcContext for FakeSpdzDealer<T> {
     }
 }
 
-impl<T: ff::PrimeField> MpcDealer for FakeSpdzDealer<T> {
+impl<T: MpcField> MpcDealer for FakeSpdzDealer<T> {
     fn share_plain(&self, x: Self::Field) -> Self::Share {
         SpdzShare {
             value: if self.auth_key.party_id == 0 {
@@ -73,7 +74,7 @@ impl<T: ff::PrimeField> MpcDealer for FakeSpdzDealer<T> {
     }
 }
 
-impl<T: ff::PrimeField> SpdzDealer for FakeSpdzDealer<T> {
+impl<T: MpcField> SpdzDealer for FakeSpdzDealer<T> {
     fn authentication_key_share(&self) -> Self::Field {
         self.auth_key.share_value
     }
@@ -96,7 +97,7 @@ struct FakeAuthKey<T> {
     plain_value: T,
 }
 
-impl<T: ff::PrimeField> FakeAuthKey<T> {
+impl<T: MpcField> FakeAuthKey<T> {
     /// Generate fake authentication key and its share.
     fn random(rng: &mut impl Rng, party_id: usize, num_parties: usize) -> Self {
         let (share_value, plain_value) = gen_random_raw_share(rng, party_id, num_parties);
@@ -115,7 +116,7 @@ struct FakeShareGenerator<T> {
     rng: SmallRng,
 }
 
-impl<T: ff::PrimeField> FakeShareGenerator<T> {
+impl<T: MpcField> FakeShareGenerator<T> {
     /// Create new generator.
     fn new(auth_key: FakeAuthKey<T>, seed: [u8; 32]) -> Self {
         Self {
@@ -155,7 +156,7 @@ impl<T: ff::PrimeField> FakeShareGenerator<T> {
 }
 
 /// Generate local unauthenticated share of specified value.
-fn gen_raw_share<T: ff::PrimeField>(
+fn gen_raw_share<T: MpcField>(
     mut rng: &mut impl Rng,
     party_id: usize,
     num_parties: usize,
@@ -173,7 +174,7 @@ fn gen_raw_share<T: ff::PrimeField>(
 }
 
 /// Generate random value and its local unauthenticated share.
-fn gen_random_raw_share<T: ff::PrimeField>(
+fn gen_random_raw_share<T: MpcField>(
     mut rng: &mut impl Rng,
     party_id: usize,
     num_parties: usize,
@@ -183,12 +184,12 @@ fn gen_random_raw_share<T: ff::PrimeField>(
 }
 
 /// Compute n-th term of linear progression.
-fn arithmetic_progression<T: ff::PrimeField>(start: T, step: T, n: u64) -> T {
+fn arithmetic_progression<T: MpcField>(start: T, step: T, n: u64) -> T {
     start + step * T::from(n)
 }
 
 /// Compute sum of terms 0..n-1 of linear progression.
-fn arithmetic_progression_sum<T: ff::PrimeField>(start: T, step: T, n: u64) -> T {
+fn arithmetic_progression_sum<T: MpcField>(start: T, step: T, n: u64) -> T {
     let sum = if n % 2 == 0 {
         T::from(n / 2) * T::from(n - 1)
     } else {

@@ -8,6 +8,7 @@ pub mod transport;
 use std::ops::{Add, Mul, Neg, Sub};
 
 use async_trait::async_trait;
+use fields::MpcField;
 
 /// Private share of a field element.
 /// Sharing is addtive and supports multiplication by scalars without communication.
@@ -22,7 +23,7 @@ pub trait MpcShare:
     + Mul<Self::Field, Output = Self>
 {
     /// Field type of value represented by this share.
-    type Field: ff::Field;
+    type Field: MpcField;
 
     /// Sharing of zero.
     fn zero() -> Self;
@@ -34,7 +35,7 @@ pub trait MpcShare:
 /// Sharing-based MPC computation context.
 pub trait MpcContext {
     /// Field type used by this MPC protocol.
-    type Field: ff::Field;
+    type Field: MpcField;
 
     /// Share type used by this MPC protocol.
     type Share: MpcShare<Field = Self::Field>;

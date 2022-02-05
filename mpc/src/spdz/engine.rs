@@ -7,6 +7,7 @@ use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    fields::MpcField,
     transport::{ChannelError, MultipartyTransport},
     MpcContext, MpcEngine,
 };
@@ -80,7 +81,7 @@ impl<T, Dealer, Channel> SpdzEngine<T, Dealer, Channel> {
 
 impl<T, Dealer, Channel> MpcContext for SpdzEngine<T, Dealer, Channel>
 where
-    T: ff::PrimeField,
+    T: MpcField,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
 {
     type Field = T;
@@ -98,7 +99,7 @@ where
 #[async_trait(?Send)]
 impl<T, E, Dealer, Channel> MpcEngine for SpdzEngine<T, Dealer, Channel>
 where
-    T: ff::PrimeField,
+    T: MpcField,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
     Channel: Stream<Item = Result<SpdzMessage<T>, E>> + Sink<SpdzMessage<T>> + Unpin,
 {
@@ -238,7 +239,7 @@ where
 
 impl<T, E, Dealer, Channel> SpdzEngine<T, Dealer, Channel>
 where
-    T: ff::PrimeField,
+    T: MpcField,
     Dealer: SpdzDealer<Field = T, Share = SpdzShare<T>>,
     Channel: Stream<Item = Result<SpdzMessage<T>, E>> + Sink<SpdzMessage<T>> + Unpin,
 {
@@ -312,7 +313,7 @@ where
 }
 
 /// Commit to a value with given salt.
-fn commit_value<T: ff::PrimeField>(value: T, salt: CommitmentSalt) -> SpdzDigestOutput {
+fn commit_value<T: MpcField>(value: T, salt: CommitmentSalt) -> SpdzDigestOutput {
     SpdzDigest::new()
         .chain_update(salt)
         .chain_update(value.to_repr())

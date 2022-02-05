@@ -1,6 +1,6 @@
 use std::ops::{Add, Mul, Neg, Sub};
 
-use crate::MpcShare;
+use crate::{fields::MpcField, MpcShare};
 
 /// Value share in SPDZ protocol.
 #[derive(Copy, Clone)]
@@ -9,7 +9,7 @@ pub struct SpdzShare<T> {
     pub(super) mac: T,
 }
 
-impl<T: ff::Field> MpcShare for SpdzShare<T> {
+impl<T: MpcField> MpcShare for SpdzShare<T> {
     type Field = T;
 
     fn zero() -> Self {
@@ -27,7 +27,7 @@ impl<T: ff::Field> MpcShare for SpdzShare<T> {
     }
 }
 
-impl<T: ff::Field> Add for SpdzShare<T> {
+impl<T: MpcField> Add for SpdzShare<T> {
     type Output = SpdzShare<T>;
     fn add(self, rhs: Self) -> Self::Output {
         SpdzShare {
@@ -37,7 +37,7 @@ impl<T: ff::Field> Add for SpdzShare<T> {
     }
 }
 
-impl<T: ff::Field> Sub for SpdzShare<T> {
+impl<T: MpcField> Sub for SpdzShare<T> {
     type Output = SpdzShare<T>;
     fn sub(self, rhs: Self) -> Self::Output {
         SpdzShare {
@@ -47,7 +47,7 @@ impl<T: ff::Field> Sub for SpdzShare<T> {
     }
 }
 
-impl<T: ff::Field> Neg for SpdzShare<T> {
+impl<T: MpcField> Neg for SpdzShare<T> {
     type Output = SpdzShare<T>;
     fn neg(self) -> Self::Output {
         SpdzShare {
@@ -57,7 +57,7 @@ impl<T: ff::Field> Neg for SpdzShare<T> {
     }
 }
 
-impl<T: ff::Field> Mul<T> for SpdzShare<T> {
+impl<T: MpcField> Mul<T> for SpdzShare<T> {
     type Output = SpdzShare<T>;
     fn mul(self, rhs: T) -> Self::Output {
         SpdzShare {
