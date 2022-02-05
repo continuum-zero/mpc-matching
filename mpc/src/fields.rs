@@ -121,8 +121,7 @@ mod mersenne_127 {
         fn truncation() {
             let value = Mersenne127::from_str_vartime("1234567890123456789012345678901").unwrap();
             let trunc_value = value.into_truncated();
-            assert_eq!(trunc_value, 11711269222405794869
-            );
+            assert_eq!(trunc_value, 11711269222405794869);
         }
     }
 }
