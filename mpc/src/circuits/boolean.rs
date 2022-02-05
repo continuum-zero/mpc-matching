@@ -62,7 +62,7 @@ pub async fn or<E: MpcEngine>(
     a: BitShare<E::Share>,
     b: BitShare<E::Share>,
 ) -> BitShare<E::Share> {
-    BitShare::wrap(mul(ctx, a.not(ctx).raw(), b.not(ctx).raw()).await).not(ctx)
+    and(ctx, a.not(ctx), b.not(ctx)).await.not(ctx)
 }
 
 /// Logical XOR.
