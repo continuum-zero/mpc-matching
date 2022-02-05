@@ -1,6 +1,6 @@
 use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcShare};
 
-use super::{mul, one};
+use super::mul;
 
 /// Share of bit value embedded in a prime field.
 #[derive(Copy, Clone)]
@@ -27,7 +27,7 @@ impl<T: MpcShare> BitShare<T> {
     where
         E: MpcEngine<Share = T>,
     {
-        Self::wrap(one(ctx))
+        Self::wrap(ctx.one())
     }
 
     /// Sharing of random bit.
@@ -43,7 +43,7 @@ impl<T: MpcShare> BitShare<T> {
     where
         E: MpcEngine<Share = T>,
     {
-        Self::wrap(one(ctx) - self.0)
+        Self::wrap(ctx.one() - self.0)
     }
 }
 
@@ -72,7 +72,7 @@ pub async fn xor<E: MpcEngine>(
     b: BitShare<E::Share>,
 ) -> BitShare<E::Share> {
     let x = a.raw() + b.raw();
-    let y = one(ctx).double() - x;
+    let y = ctx.two() - x;
     BitShare::wrap(mul(ctx, x, y).await).not(ctx)
 }
 

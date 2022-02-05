@@ -13,15 +13,20 @@ pub struct MpcExecutionContext<Engine: MpcEngine> {
     engine: RefCell<Engine>,
     open_buffer: RoundCommandBuffer<Engine::Share, Engine::Field>,
     force_integrity_check: Cell<bool>,
+    cached_one: Engine::Share,
+    cached_two: Engine::Share,
 }
 
 impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     /// Create new MPC circuit executor.
-    pub fn new(engine: Engine) -> Self {
+    pub fn new(mut engine: Engine) -> Self {
+        let one = engine.dealer().share_plain(ff::Field::one());
         MpcExecutionContext {
             engine: RefCell::new(engine),
             open_buffer: RoundCommandBuffer::new(),
             force_integrity_check: Cell::new(false),
+            cached_one: one,
+            cached_two: one.double(),
         }
     }
 
@@ -40,6 +45,16 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     /// The check will be executed at the beginning of next round.
     pub fn ensure_integrity(&self) {
         self.force_integrity_check.set(true);
+    }
+
+    /// Cached sharing of one.
+    pub fn one(&self) -> Engine::Share {
+        self.cached_one
+    }
+
+    /// Cached sharing of two.
+    pub fn two(&self) -> Engine::Share {
+        self.cached_two
     }
 }
 

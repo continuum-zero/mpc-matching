@@ -1,5 +1,3 @@
-use ff::Field;
-
 use crate::{executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine};
 
 use super::join_circuits_all;
@@ -7,11 +5,6 @@ use super::join_circuits_all;
 /// Sharing of a plain value.
 pub fn plain<E: MpcEngine>(ctx: &MpcExecutionContext<E>, value: E::Field) -> E::Share {
     ctx.engine().dealer().share_plain(value)
-}
-
-/// Sharing of one.
-pub fn one<E: MpcEngine>(ctx: &MpcExecutionContext<E>) -> E::Share {
-    plain(ctx, E::Field::one())
 }
 
 /// Multiply two shared values.
@@ -31,7 +24,7 @@ pub async fn product<E: MpcEngine>(
     let mut elems: Vec<_> = elems.into_iter().collect();
 
     if elems.is_empty() {
-        return one(ctx);
+        return ctx.one();
     }
 
     while elems.len() > 1 {
