@@ -4,12 +4,22 @@ use crate::{executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine};
 
 use super::join_circuits_all;
 
+/// Sharing of a plain value.
+pub fn plain<E: MpcEngine>(ctx: &MpcExecutionContext<E>, value: E::Field) -> E::Share {
+    ctx.engine().dealer().share_plain(value)
+}
+
+/// Sharing of one.
+pub fn one<E: MpcEngine>(ctx: &MpcExecutionContext<E>) -> E::Share {
+    plain(ctx, E::Field::one())
+}
+
 /// Multiply two shared values.
 /// Cost: 1 Beaver triple, 2 partial openings, 1 communication round.
 pub async fn mul<E: MpcEngine>(ctx: &MpcExecutionContext<E>, x: E::Share, y: E::Share) -> E::Share {
     let (a, b, c) = ctx.engine().dealer().next_beaver_triple();
     let (e, d) = join_circuits!(ctx.open_unchecked(x - a), ctx.open_unchecked(y - b));
-    c + b * e + a * d + ctx.engine().dealer().share_plain(e * d)
+    c + b * e + a * d + plain(ctx, e * d)
 }
 
 /// Compute product of given sequence of shares.
@@ -21,7 +31,7 @@ pub async fn product<E: MpcEngine>(
     let mut elems: Vec<_> = elems.into_iter().collect();
 
     if elems.is_empty() {
-        return ctx.engine().dealer().share_plain(Field::one());
+        return one(ctx);
     }
 
     while elems.len() > 1 {

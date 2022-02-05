@@ -1,6 +1,9 @@
 mod basic;
 pub use basic::*;
 
+mod boolean;
+pub use boolean::*;
+
 use std::{future::Future, pin::Pin, task::Poll};
 
 pub use futures; // Reexport futures crate for join_circuits! macro.
