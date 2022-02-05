@@ -8,7 +8,6 @@ use mpc::{
     fields::Mersenne127,
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
     transport::{self, BincodeDuplex},
-    MpcDealer, MpcEngine,
 };
 
 type Fp = Mersenne127;
@@ -42,9 +41,7 @@ where
 async fn multiply_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
     run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
         Box::pin(async move {
-            let mut elems: Vec<_> = (0..width)
-                .map(|x| ctx.engine().dealer().share_plain(Fp::from(x)))
-                .collect();
+            let mut elems: Vec<_> = (0..width).map(|x| ctx.plain(Fp::from(x))).collect();
             for _ in 0..num_rounds {
                 elems = join_circuits_all(elems.into_iter().map(|x| mul(ctx, x, x))).await;
             }
