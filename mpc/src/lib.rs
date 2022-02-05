@@ -24,6 +24,9 @@ pub trait MpcShare:
     /// Field type of value represented by this share.
     type Field: ff::Field;
 
+    /// Sharing of zero.
+    fn zero() -> Self;
+
     /// Multiply share by two.
     fn double(&self) -> Self;
 }

@@ -26,7 +26,7 @@ pub async fn product<E: MpcEngine>(
 
     while elems.len() > 1 {
         let mut reduced =
-            join_circuits_all(elems.chunks_exact(2).map(|pair| mul(ctx, pair[0], pair[1]))).await;
+            join_circuits_all(elems.chunks_exact(2).map(|p| mul(ctx, p[0], p[1]))).await;
         if elems.len() % 2 == 1 {
             reduced.push(*elems.last().unwrap());
         }
