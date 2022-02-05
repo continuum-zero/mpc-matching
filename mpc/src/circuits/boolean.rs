@@ -73,7 +73,7 @@ pub async fn xor<E: MpcEngine>(
 ) -> BitShare<E::Share> {
     let x = a.raw() + b.raw();
     let y = ctx.two() - x;
-    BitShare::wrap(mul(ctx, x, y).await).not(ctx)
+    BitShare::wrap(mul(ctx, x, y).await)
 }
 
 /// Ternary IF operator.
@@ -88,4 +88,85 @@ pub async fn if_cond<E: MpcEngine>(
 }
 
 #[cfg(test)]
-mod tests {}
+mod tests {
+    use crate::{
+        circuits::{testing::*, *},
+        plaintext::PlainShare,
+    };
+
+    #[tokio::test]
+    async fn test_not() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let zero = BitShare::zero();
+                let one = BitShare::one(ctx);
+                assert_eq!(zero.not(ctx).raw(), one.raw());
+                assert_eq!(one.not(ctx).raw(), zero.raw());
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_and() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let bits = [BitShare::zero(), BitShare::one(ctx)];
+                for i in 0..=1 {
+                    for j in 0..=1 {
+                        let result = and(ctx, bits[i], bits[j]).await;
+                        assert_eq!(result.raw(), bits[i & j].raw());
+                    }
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_or() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let bits = [BitShare::zero(), BitShare::one(ctx)];
+                for i in 0..=1 {
+                    for j in 0..=1 {
+                        let result = or(ctx, bits[i], bits[j]).await;
+                        assert_eq!(result.raw(), bits[i | j].raw());
+                    }
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_xor() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let bits = [BitShare::zero(), BitShare::one(ctx)];
+                for i in 0..=1 {
+                    for j in 0..=1 {
+                        let result = xor(ctx, bits[i], bits[j]).await;
+                        assert_eq!(result.raw(), bits[i ^ j].raw());
+                    }
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_if_cond() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let bits = [BitShare::zero(), BitShare::one(ctx)];
+                let vals = [PlainShare(420.into()), PlainShare(1337.into())];
+                for i in 0..=1 {
+                    let result = if_cond(ctx, bits[i], vals[1], vals[0]).await;
+                    assert_eq!(result, vals[i]);
+                }
+            })
+        })
+        .await;
+    }
+}
