@@ -8,13 +8,38 @@ pub trait IntoTruncated<T> {
 pub trait IntEmbeddable: From<u64> + IntoTruncated<u64> {
     /// Largest k such that 2^(k+1) doesn't overflow.
     const SAFE_BITS: usize;
+
+    /// Returns preprocessed integer 2^k embedded in field. Panics if k >= SAFE_BITS.
+    fn power_of_two(k: usize) -> Self;
+
+    /// Returns preprocessed inverse of 2^k. Panics if k >= SAFE_BITS.
+    fn power_of_two_inverse(k: usize) -> Self;
+}
+
+/// Precomputed powers of two and their inverses.
+struct PowersOfTwo<T, const N: usize> {
+    pub powers: [T; N],
+    pub inverses: [T; N],
+}
+
+impl<T: ff::Field, const N: usize> PowersOfTwo<T, N> {
+    /// Precompute powers of two and their inverses.
+    fn precompute() -> Self {
+        let mut powers = [T::one(); N];
+        let mut inverses = [T::one(); N];
+        for i in 1..N {
+            powers[i] = powers[i - 1].double();
+            inverses[i] = powers[i].invert().unwrap();
+        }
+        Self { powers, inverses }
+    }
 }
 
 mod mersenne_61 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{IntEmbeddable, IntoTruncated};
+    use super::{IntEmbeddable, IntoTruncated, PowersOfTwo};
 
     /// Finite field mod 2^61-1.
     #[derive(PrimeField)]
@@ -22,6 +47,9 @@ mod mersenne_61 {
     #[PrimeFieldGenerator = "37"]
     #[PrimeFieldReprEndianness = "little"]
     pub struct Mersenne61([u64; 1]);
+
+    #[static_init::dynamic]
+    static POWERS_OF_TWO: PowersOfTwo<Mersenne61, 59> = PowersOfTwo::precompute();
 
     impl Serialize for Mersenne61 {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -48,6 +76,14 @@ mod mersenne_61 {
 
     impl IntEmbeddable for Mersenne61 {
         const SAFE_BITS: usize = 59;
+
+        fn power_of_two(k: usize) -> Self {
+            POWERS_OF_TWO.powers[k]
+        }
+
+        fn power_of_two_inverse(k: usize) -> Self {
+            POWERS_OF_TWO.inverses[k]
+        }
     }
 
     #[cfg(test)]
@@ -78,7 +114,7 @@ mod mersenne_127 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{IntEmbeddable, IntoTruncated};
+    use super::{IntEmbeddable, IntoTruncated, PowersOfTwo};
 
     /// Finite field mod 2^127-1.
     #[derive(PrimeField)]
@@ -86,6 +122,9 @@ mod mersenne_127 {
     #[PrimeFieldGenerator = "43"]
     #[PrimeFieldReprEndianness = "little"]
     pub struct Mersenne127([u64; 2]);
+
+    #[static_init::dynamic]
+    static POWERS_OF_TWO: PowersOfTwo<Mersenne127, 125> = PowersOfTwo::precompute();
 
     impl Serialize for Mersenne127 {
         fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
@@ -113,6 +152,14 @@ mod mersenne_127 {
 
     impl IntEmbeddable for Mersenne127 {
         const SAFE_BITS: usize = 125;
+
+        fn power_of_two(k: usize) -> Self {
+            POWERS_OF_TWO.powers[k]
+        }
+
+        fn power_of_two_inverse(k: usize) -> Self {
+            POWERS_OF_TWO.inverses[k]
+        }
     }
 
     #[cfg(test)]

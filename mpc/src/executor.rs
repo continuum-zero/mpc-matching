@@ -56,6 +56,11 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     pub fn two(&self) -> Engine::Share {
         self.cached_two
     }
+
+    /// Sharing of plaintext element.
+    pub fn plain(&self, value: Engine::Field) -> Engine::Share {
+        self.cached_one * value
+    }
 }
 
 impl<Engine: MpcEngine> MpcContext for MpcExecutionContext<Engine> {

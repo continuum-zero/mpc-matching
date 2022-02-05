@@ -1,16 +1,11 @@
 use crate::{executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine};
 
-/// Sharing of a plain value.
-pub fn plain<E: MpcEngine>(ctx: &MpcExecutionContext<E>, value: E::Field) -> E::Share {
-    ctx.engine().dealer().share_plain(value)
-}
-
 /// Multiply two shared values.
 /// Cost: 1 Beaver triple, 2 partial openings, 1 communication round.
 pub async fn mul<E: MpcEngine>(ctx: &MpcExecutionContext<E>, x: E::Share, y: E::Share) -> E::Share {
     let (a, b, c) = ctx.engine().dealer().next_beaver_triple();
     let (e, d) = join_circuits!(ctx.open_unchecked(x - a), ctx.open_unchecked(y - b));
-    c + b * e + a * d + plain(ctx, e * d)
+    c + b * e + a * d + ctx.plain(e * d)
 }
 
 #[cfg(test)]
