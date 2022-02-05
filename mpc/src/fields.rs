@@ -1,14 +1,20 @@
-/// Convertion into small integer types by truncating.
+/// Conversion into small integer types by truncating.
 pub trait IntoTruncated<T> {
     /// Truncate value and convert it.
     fn into_truncated(&self) -> T;
+}
+
+/// Fields that support embedding of N-bit integers.
+pub trait IntEmbeddable: From<u64> + IntoTruncated<u64> {
+    /// Largest k such that 2^(k+1) doesn't overflow.
+    const SAFE_BITS: usize;
 }
 
 mod mersenne_61 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::IntoTruncated;
+    use super::{IntEmbeddable, IntoTruncated};
 
     /// Finite field mod 2^61-1.
     #[derive(PrimeField)]
@@ -40,6 +46,10 @@ mod mersenne_61 {
         }
     }
 
+    impl IntEmbeddable for Mersenne61 {
+        const SAFE_BITS: usize = 59;
+    }
+
     #[cfg(test)]
     mod tests {
         use crate::fields::IntoTruncated;
@@ -68,7 +78,7 @@ mod mersenne_127 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::IntoTruncated;
+    use super::{IntEmbeddable, IntoTruncated};
 
     /// Finite field mod 2^127-1.
     #[derive(PrimeField)]
@@ -99,6 +109,10 @@ mod mersenne_127 {
             const R2_INV: Mersenne127 = Mersenne127([1, 0]);
             (*self * R2_INV).0[0]
         }
+    }
+
+    impl IntEmbeddable for Mersenne127 {
+        const SAFE_BITS: usize = 125;
     }
 
     #[cfg(test)]
