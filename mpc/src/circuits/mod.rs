@@ -7,6 +7,9 @@ pub use boolean::*;
 mod integer;
 pub use integer::*;
 
+mod sequences;
+pub use sequences::*;
+
 use std::{future::Future, pin::Pin, task::Poll};
 
 pub use futures; // Reexport futures crate for join_circuits! macro.
