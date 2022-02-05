@@ -43,56 +43,44 @@ pub async fn product<E: MpcEngine>(
 mod tests {
     use std::iter;
 
-    use crate::circuits::*;
-    use crate::executor::run_circuit;
-    use crate::plaintext::{PlainMpcEngine, PlainShare};
+    use crate::circuits::{testing::*, *};
+    use crate::plaintext::PlainShare;
     use ff::Field;
-
-    type Fp = crate::fields::Mersenne127;
 
     #[tokio::test]
     async fn test_mul() {
-        run_circuit(PlainMpcEngine::<Fp>::new(), &[], |ctx, _| {
+        test_circuit(|ctx| {
             Box::pin(async {
                 let a = PlainShare(1337.into());
                 let b = PlainShare(420.into());
                 let result = mul(ctx, a, b).await;
-                let result = ctx.open_unchecked(result).await;
-                assert_eq!(result, Fp::from(1337 * 420));
-                vec![]
+                assert_eq!(result.0, (1337 * 420).into());
             })
         })
-        .await
-        .unwrap();
+        .await;
     }
 
     #[tokio::test]
     async fn test_product() {
-        run_circuit(PlainMpcEngine::<Fp>::new(), &[], |ctx, _| {
+        test_circuit(|ctx| {
             Box::pin(async {
-                let elems = [2, 5, 7, 11, 13, 17, 19, 1, 2, 3].map(|x| Fp::from(x));
-                let expected = elems.iter().fold(Fp::one(), |x, y| x * y);
-                let result = product(ctx, elems.map(|x| PlainShare(x.into()))).await;
-                let result = ctx.open_unchecked(result).await;
-                assert_eq!(result, expected);
-                vec![]
+                let elems = [2, 5, 7, 11, 13, 17, 19, 1, 2, 3].map(|x| x.into());
+                let expected = elems.iter().fold(MockField::one(), |x, y| x * y);
+                let result = product(ctx, elems.map(|x| PlainShare(x))).await;
+                assert_eq!(result.0, expected);
             })
         })
-        .await
-        .unwrap();
+        .await;
     }
 
     #[tokio::test]
     async fn test_product_empty_sequence() {
-        run_circuit(PlainMpcEngine::<Fp>::new(), &[], |ctx, _| {
+        test_circuit(|ctx| {
             Box::pin(async {
                 let result = product(ctx, iter::empty()).await;
-                let result = ctx.open_unchecked(result).await;
-                assert_eq!(result, Fp::one());
-                vec![]
+                assert_eq!(result.0, MockField::one());
             })
         })
-        .await
-        .unwrap();
+        .await;
     }
 }

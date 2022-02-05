@@ -105,7 +105,7 @@ impl<T: ff::Field> MpcDealer for PlainMpcEngine<T> {
 }
 
 /// Mock share of a computation run on a single node. Wraps plaintext value.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct PlainShare<T>(pub T);
 
 impl<T: ff::Field> MpcShare for PlainShare<T> {

@@ -62,3 +62,31 @@ fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<&mut T>> {
         .iter_mut()
         .map(|t| unsafe { Pin::new_unchecked(t) })
 }
+
+pub mod testing {
+    use futures::FutureExt;
+    use std::future::Future;
+    use std::pin::Pin;
+
+    /// Field for circuits tests.
+    pub type MockField = crate::fields::Mersenne127;
+
+    /// Fake MPC engine for circuits tests.
+    pub type MockEngine = crate::plaintext::PlainMpcEngine<MockField>;
+
+    /// Execution context for circuits tests.
+    pub type MockExecutionContext = crate::executor::MpcExecutionContext<MockEngine>;
+
+    /// Test async circuit in mock plaintext environment.
+    pub async fn test_circuit<F>(circuit_fn: F)
+    where
+        F: FnOnce(&'_ MockExecutionContext) -> Pin<Box<dyn Future<Output = ()> + '_>>,
+    {
+        crate::executor::run_circuit(MockEngine::new(), &[], |ctx, _| {
+            let future = circuit_fn(ctx);
+            Box::pin(future.map(|_| vec![]))
+        })
+        .await
+        .unwrap();
+    }
+}
