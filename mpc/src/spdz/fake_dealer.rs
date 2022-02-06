@@ -64,12 +64,10 @@ impl<T: MpcField> MpcDealer for FakeSpdzDealer<T> {
         (a_share, b_share, c_share)
     }
 
-    fn next_bit(&mut self) -> Self::Share {
-        let value = if self.bits_gen.rng().gen() {
-            Self::Field::one()
-        } else {
-            Self::Field::zero()
-        };
+    fn next_uint(&mut self, bits: usize) -> Self::Share {
+        let value = (0..bits).fold(Self::Field::zero(), |acc, _| {
+            acc.double() + Self::Field::from(self.bits_gen.rng().gen_range(0..=1))
+        });
         self.bits_gen.gen_authenticated_share(value)
     }
 }

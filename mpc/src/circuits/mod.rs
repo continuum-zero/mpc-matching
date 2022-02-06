@@ -1,6 +1,9 @@
 mod basic;
 pub use basic::*;
 
+mod bitwise;
+pub use bitwise::*;
+
 mod boolean;
 pub use boolean::*;
 

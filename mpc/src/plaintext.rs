@@ -95,12 +95,10 @@ impl<T: MpcField> MpcDealer for PlainMpcEngine<T> {
         (PlainShare(a), PlainShare(b), PlainShare(a * b))
     }
 
-    fn next_bit(&mut self) -> Self::Share {
-        PlainShare(if self.rng.gen() {
-            Self::Field::one()
-        } else {
-            Self::Field::zero()
-        })
+    fn next_uint(&mut self, bits: usize) -> Self::Share {
+        PlainShare((0..bits).fold(Self::Field::zero(), |acc, _| {
+            acc.double() + Self::Field::from(self.rng.gen_range(0..=1))
+        }))
     }
 }
 
