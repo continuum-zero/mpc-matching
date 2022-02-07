@@ -2,7 +2,7 @@ use ff::Field;
 
 use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcShare};
 
-use super::mul;
+use super::{mul, IntShare};
 
 /// Share of bit value embedded in a prime field.
 #[derive(Copy, Clone)]
@@ -103,6 +103,42 @@ impl<T: MpcShare> BitShare<T> {
     {
         let delta = true_val - false_val;
         false_val + mul(ctx, delta, self.0).await
+    }
+
+    /// Returns (x, y) if self is 0, or (y, x) if self is 1.
+    pub async fn swap_if<E: MpcEngine>(self, ctx: &MpcExecutionContext<E>, x: T, y: T) -> (T, T)
+    where
+        E: MpcEngine<Share = T>,
+    {
+        let delta = mul(ctx, x - y, self.0).await;
+        (x - delta, y + delta)
+    }
+
+    /// Ternary IF operator.
+    pub async fn select_int<E: MpcEngine, const N: usize>(
+        self,
+        ctx: &MpcExecutionContext<E>,
+        true_val: IntShare<T, N>,
+        false_val: IntShare<T, N>,
+    ) -> IntShare<T, N>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        IntShare::wrap(self.select(ctx, true_val.raw(), false_val.raw()).await)
+    }
+
+    /// Returns (x, y) if self is 0, or (y, x) if self is 1.
+    pub async fn swap_if_int<E: MpcEngine, const N: usize>(
+        self,
+        ctx: &MpcExecutionContext<E>,
+        x: IntShare<T, N>,
+        y: IntShare<T, N>,
+    ) -> (IntShare<T, N>, IntShare<T, N>)
+    where
+        E: MpcEngine<Share = T>,
+    {
+        let (a, b) = self.swap_if(ctx, x.raw(), y.raw()).await;
+        (IntShare::wrap(a), IntShare::wrap(b))
     }
 }
 

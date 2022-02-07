@@ -149,7 +149,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     where
         E: MpcEngine<Share = T>,
     {
-        (rhs - self).less_than_zero(ctx).await
+        (self - rhs).less_than_zero(ctx).await
     }
 
     /// Test if self > rhs.
@@ -158,7 +158,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     where
         E: MpcEngine<Share = T>,
     {
-        (self - rhs).less_than_zero(ctx).await
+        (rhs - self).less_than_zero(ctx).await
     }
 
     /// Test if self <= rhs.

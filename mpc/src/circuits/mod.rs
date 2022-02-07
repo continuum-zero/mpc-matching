@@ -13,6 +13,9 @@ pub use integer::*;
 mod sequences;
 pub use sequences::*;
 
+mod sorting;
+pub use sorting::*;
+
 use std::{future::Future, pin::Pin, task::Poll};
 
 pub use futures; // Reexport futures crate for join_circuits! macro.
