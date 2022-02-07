@@ -1,4 +1,7 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::{
+    cmp,
+    ops::{Add, Mul, Neg, Sub},
+};
 
 use crate::{
     executor::MpcExecutionContext,
@@ -9,6 +12,7 @@ use crate::{
 use super::{bitwise_compare, BitShare};
 
 /// Share of N-bit signed integer embedded in a prime field.
+/// Value should be in range -2^(N-1) < x < 2^(N-1) (we don't allow -2^(N-1), so each value can be negated).
 #[derive(Copy, Clone)]
 pub struct IntShare<T, const N: usize>(T);
 
@@ -84,8 +88,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Remainder of N-bit integer modulo 2^k for k < N. Result is given in range [0;2^k).
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits,
-    /// and only if integer is not overflown.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
     pub async fn mod_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
     where
         E: MpcEngine<Share = T>,
@@ -98,7 +101,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         // (https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.220.9499&rep=rep1&type=pdf)
 
         let (mask, low, low_bits) = random_bit_mask(ctx, k);
-        let masked_value = mask + self.0 + ctx.plain(E::Field::power_of_two(N - 1));
+        let masked_value = mask + self.raw() + ctx.plain(E::Field::power_of_two(N - 1));
 
         ctx.ensure_integrity(); // TODO: are we sure we need it to not leak anything?
         let masked_value = ctx.open_unchecked(masked_value).await;
@@ -108,6 +111,71 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         let correction = masked_less.raw() * T::Field::power_of_two(k);
 
         Self::wrap(ctx.plain(masked_value.into()) - low + correction)
+    }
+
+    /// Floor division of N-bit integer by 2^k.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn div_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
+    where
+        E: MpcEngine<Share = T>,
+    {
+        let k = cmp::min(k, N - 1);
+        let remainder = self.mod_power_of_two(ctx, k).await;
+        Self::wrap((self.raw() - remainder.raw()) * T::Field::power_of_two_inverse(k))
+    }
+
+    /// Test if value is less than zero.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn less_than_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        BitShare::wrap(-self.div_power_of_two(ctx, N - 1).await.raw())
+    }
+
+    /// Test if value is greater than zero.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn greater_than_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        (-self).less_than_zero(ctx).await
+    }
+
+    /// Test if self < rhs.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn less<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        (rhs - self).less_than_zero(ctx).await
+    }
+
+    /// Test if self > rhs.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn greater<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        (self - rhs).less_than_zero(ctx).await
+    }
+
+    /// Test if self <= rhs.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn less_eq<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        self.greater(ctx, rhs).await.not(ctx)
+    }
+
+    /// Test if self >= rhs.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn greater_eq<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        self.less(ctx, rhs).await.not(ctx)
     }
 }
 
@@ -150,7 +218,7 @@ impl<T: MpcShare, const N: usize> Mul<i64> for IntShare<T, N> {
 fn embed_int_into_field<T: MpcField, const N: usize>(value: i64) -> T {
     if N < 64 {
         assert!(
-            value >= -(1 << (N - 1)) && value < (1 << (N - 1)),
+            value > -(1 << (N - 1)) && value < (1 << (N - 1)),
             "Input value is out of bounds"
         );
     }
@@ -257,6 +325,40 @@ mod tests {
                         let expected = value.rem_euclid(1 << power);
                         assert_eq!(reduced, expected);
                     }
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_div_power_of_two() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [0, 1, -1, 123, -123, 17, -17];
+                for power in 0..10 {
+                    for value in cases {
+                        let share: IntShare<_, 8> = IntShare::plain(ctx, value);
+                        let reduced = share.div_power_of_two(ctx, power).await;
+                        let reduced = reduced.open_unchecked(ctx).await;
+                        let expected = value >> power;
+                        assert_eq!(reduced, expected);
+                    }
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_less_than_zero() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [0, 1, -1, 123, -123, 17, -17];
+                for value in cases {
+                    let share: IntShare<_, 8> = IntShare::plain(ctx, value);
+                    let bit = share.less_than_zero(ctx).await;
+                    assert_eq!(bit.open_unchecked(ctx).await, value < 0);
                 }
             })
         })
