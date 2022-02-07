@@ -3,9 +3,9 @@ use std::{future::Future, pin::Pin};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 use mpc::{
-    circuits::{join_circuits_all, mul, IntShare},
+    circuits::{self, join_circuits_all, mul, IntShare},
     executor::{self, MpcExecutionContext},
-    fields::Mersenne127,
+    fields::{IntoTruncated, Mersenne127},
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
     transport::{self, BincodeDuplex},
 };
@@ -66,10 +66,22 @@ pub async fn mod2k_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
     .await;
 }
 
+pub async fn sort_seq(num_parties: u64, length: u64) {
+    let sorted = run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
+        Box::pin(async move {
+            let mut elems: Vec<IntShare<_, 64>> = (0..length)
+                .map(|x| IntShare::plain(ctx, (length - x) as i64))
+                .collect();
+            circuits::sort(ctx, &mut elems).await;
+            elems.into_iter().map(|x| x.raw()).collect()
+        })
+    })
+    .await;
+    let sorted: Vec<_> = sorted.into_iter().map(|x| x.into_truncated()).collect();
+    dbg!(sorted);
+}
+
 #[tokio::main]
 async fn main() {
-    let num_parties = 20;
-    let num_rounds = 100;
-    let width = 20;
-    mod2k_in_loop(num_parties, num_rounds, width).await;
+    sort_seq(20, 100).await;
 }
