@@ -13,8 +13,7 @@ pub use integer::*;
 mod sequences;
 pub use sequences::*;
 
-mod sorting;
-pub use sorting::*;
+pub mod sorting;
 
 use std::{future::Future, pin::Pin, task::Poll};
 

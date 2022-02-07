@@ -69,10 +69,17 @@ pub async fn mod2k_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
 pub async fn sort_seq(num_parties: u64, length: u64) {
     let sorted = run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
         Box::pin(async move {
-            let mut elems: Vec<IntShare<_, 64>> = (0..length)
+            let weights: Vec<IntShare<_, 64>> = (0..length)
                 .map(|x| IntShare::plain(ctx, (length - x) as i64))
                 .collect();
-            circuits::sort(ctx, &mut elems).await;
+
+            let mut elems: Vec<IntShare<_, 64>> = (0..length)
+                .map(|x| IntShare::plain(ctx, x as i64))
+                .collect();
+
+            let swaps = circuits::sorting::generate_sorting_swaps(ctx, &weights).await;
+            circuits::sorting::apply_swaps(ctx, &mut elems, &swaps).await;
+
             elems.into_iter().map(|x| x.raw()).collect()
         })
     })
