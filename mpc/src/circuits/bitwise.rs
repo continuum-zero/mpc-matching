@@ -48,6 +48,23 @@ pub async fn bitwise_compare<E: MpcEngine>(
     (is_less, is_greater)
 }
 
+/// Check equality of plaintext unsigned integer with a hidden integer, provided sharings of its individual bits.
+pub async fn bitwise_equal<E: MpcEngine>(
+    ctx: &MpcExecutionContext<E>,
+    lhs: u64,
+    rhs: &[BitShare<E::Share>],
+) -> BitShare<E::Share> {
+    let base_cases = rhs.iter().enumerate().map(|(i, &rhs_bit)| {
+        let lhs_bit = (lhs >> i) & 1;
+        if lhs_bit == 0 {
+            rhs_bit.not(ctx)
+        } else {
+            rhs_bit
+        }
+    });
+    fold_tree(base_cases, BitShare::one(ctx), |lhs, rhs| lhs.and(ctx, rhs)).await
+}
+
 #[cfg(test)]
 mod tests {
     use crate::circuits::{testing::*, *};
@@ -69,6 +86,26 @@ mod tests {
 
                     assert_eq!(is_less, lhs < rhs);
                     assert_eq!(is_greater, lhs > rhs);
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_bitwise_equal() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [(100, 100), (100, 101), (64, 64), (64, 65), (5, 5), (4, 8)];
+
+                for (lhs, rhs) in cases {
+                    let rhs_bits: Vec<_> = (0..8)
+                        .map(|i| BitShare::plain(ctx, ((rhs >> i) & 1) == 1))
+                        .collect();
+
+                    let is_eq = bitwise_equal(ctx, lhs, &rhs_bits).await;
+                    let is_eq = is_eq.open_unchecked(ctx).await;
+                    assert_eq!(is_eq, lhs == rhs);
                 }
             })
         })

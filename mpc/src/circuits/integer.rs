@@ -9,10 +9,11 @@ use crate::{
     MpcDealer, MpcEngine, MpcShare,
 };
 
-use super::{bitwise_compare, BitShare};
+use super::{bitwise_compare, bitwise_equal, BitShare};
 
 /// Share of N-bit signed integer embedded in a prime field.
 /// Value should be in range -2^(N-1) < x < 2^(N-1) (we don't allow -2^(N-1), so each value can be negated).
+/// Operations do not check for overflows - for security & privacy user needs to ensure values do not overflow.
 #[derive(Copy, Clone)]
 pub struct IntShare<T, const N: usize>(T);
 
@@ -97,7 +98,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
             panic!("Unsigned modulo overflows");
         }
 
-        // Mod2M algorithm from "Improved Primitives for Secure Multiparty Integer Computation"
+        // Adapted Mod2M algorithm from "Improved Primitives for Secure Multiparty Integer Computation"
         // (https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.220.9499&rep=rep1&type=pdf)
 
         let (mask, low, low_bits) = random_bit_mask(ctx, k);
@@ -176,6 +177,34 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         E: MpcEngine<Share = T>,
     {
         self.less(ctx, rhs).await.not(ctx)
+    }
+
+    /// Test if value is equal to zero.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn equal_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        // Adapted EQZ algorithm from "Improved Primitives for Secure Multiparty Integer Computation"
+        // (https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.220.9499&rep=rep1&type=pdf)
+
+        let (mask, _, low_bits) = random_bit_mask(ctx, N);
+        let masked_value = mask + self.raw() + ctx.plain(E::Field::power_of_two(N - 1));
+
+        ctx.ensure_integrity(); // TODO: are we sure we need it to not leak anything?
+        let masked_value = ctx.open_unchecked(masked_value).await;
+        let masked_value = masked_value.into_truncated() ^ (1 << (N - 1));
+
+        bitwise_equal(ctx, masked_value, &low_bits).await
+    }
+
+    /// Test if self == rhs.
+    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    pub async fn equal<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        (self - rhs).equal_zero(ctx).await
     }
 }
 
@@ -359,6 +388,21 @@ mod tests {
                     let share: IntShare<_, 8> = IntShare::plain(ctx, value);
                     let bit = share.less_than_zero(ctx).await;
                     assert_eq!(bit.open_unchecked(ctx).await, value < 0);
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_equal_zero() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [0, 1, -1, 100, -100];
+                for value in cases {
+                    let share: IntShare<_, 8> = IntShare::plain(ctx, value);
+                    let bit = share.equal_zero(ctx).await;
+                    assert_eq!(bit.open_unchecked(ctx).await, value == 0);
                 }
             })
         })
