@@ -61,13 +61,13 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Unwrapped MPC share.
-    pub fn raw(&self) -> T {
+    pub fn raw(self) -> T {
         self.0
     }
 
     /// Open share. Requires communication.
     /// Warning: Integrity checks may be deferred (like in SPDZ protocol). Use with care.
-    pub async fn open_unchecked<E>(&self, ctx: &MpcExecutionContext<E>) -> i64
+    pub async fn open_unchecked<E>(self, ctx: &MpcExecutionContext<E>) -> i64
     where
         E: MpcEngine<Share = T>,
     {
@@ -79,14 +79,14 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Multiply share by two.
-    pub fn double(&self) -> Self {
+    pub fn double(self) -> Self {
         Self::wrap(self.0.double())
     }
 
     /// Remainder of N-bit integer modulo 2^k for k < N. Result is given in range [0;2^k).
     /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits,
     /// and only if integer is not overflown.
-    pub async fn mod_power_of_two<E>(&self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
+    pub async fn mod_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
     where
         E: MpcEngine<Share = T>,
     {

@@ -3,7 +3,7 @@ use std::{future::Future, pin::Pin};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 use mpc::{
-    circuits::{join_circuits_all, mul},
+    circuits::{join_circuits_all, mul, IntShare},
     executor::{self, MpcExecutionContext},
     fields::Mersenne127,
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
@@ -38,7 +38,7 @@ where
     outputs.into_iter().next().unwrap()
 }
 
-async fn multiply_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
+pub async fn multiply_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
     run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
         Box::pin(async move {
             let mut elems: Vec<_> = (0..width).map(|x| ctx.plain(Fp::from(x))).collect();
@@ -51,10 +51,25 @@ async fn multiply_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
     .await;
 }
 
+pub async fn mod2k_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
+    run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
+        Box::pin(async move {
+            let mut elems: Vec<IntShare<_, 64>> =
+                (0..width).map(|x| IntShare::plain(ctx, x as i64)).collect();
+            for _ in 0..num_rounds {
+                elems =
+                    join_circuits_all(elems.into_iter().map(|x| x.mod_power_of_two(ctx, 60))).await;
+            }
+            elems.into_iter().map(|x| x.raw()).collect()
+        })
+    })
+    .await;
+}
+
 #[tokio::main]
 async fn main() {
     let num_parties = 20;
-    let num_rounds = 300;
-    let width = 1500;
-    multiply_in_loop(num_parties, num_rounds, width).await;
+    let num_rounds = 100;
+    let width = 20;
+    mod2k_in_loop(num_parties, num_rounds, width).await;
 }

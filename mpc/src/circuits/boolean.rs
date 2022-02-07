@@ -44,13 +44,13 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Unwrapped MPC share.
-    pub fn raw(&self) -> T {
+    pub fn raw(self) -> T {
         self.0
     }
 
     /// Open share. Requires communication.
     /// Warning: Integrity checks may be deferred (like in SPDZ protocol). Use with care.
-    pub async fn open_unchecked<E>(&self, ctx: &MpcExecutionContext<E>) -> bool
+    pub async fn open_unchecked<E>(self, ctx: &MpcExecutionContext<E>) -> bool
     where
         E: MpcEngine<Share = T>,
     {
@@ -58,7 +58,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical negation.
-    pub fn not<E>(&self, ctx: &MpcExecutionContext<E>) -> Self
+    pub fn not<E>(self, ctx: &MpcExecutionContext<E>) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -66,7 +66,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical AND.
-    pub async fn and<E>(&self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    pub async fn and<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -74,7 +74,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical OR.
-    pub async fn or<E>(&self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    pub async fn or<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -82,7 +82,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical XOR.
-    pub async fn xor<E>(&self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    pub async fn xor<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -93,7 +93,7 @@ impl<T: MpcShare> BitShare<T> {
 
     /// Ternary IF operator.
     pub async fn select<E: MpcEngine>(
-        &self,
+        self,
         ctx: &MpcExecutionContext<E>,
         true_val: T,
         false_val: T,
