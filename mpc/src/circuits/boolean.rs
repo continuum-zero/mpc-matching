@@ -2,18 +2,27 @@ use ff::Field;
 
 use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcShare};
 
-use super::{mul, IntShare};
+use super::{mul, WrappedShare};
 
 /// Share of bit value embedded in a prime field.
 #[derive(Copy, Clone)]
 pub struct BitShare<T>(T);
 
-impl<T: MpcShare> BitShare<T> {
+impl<T: MpcShare> WrappedShare for BitShare<T> {
+    type Item = T;
+
     /// Wrap raw share. Input is assumed to be a sharing of a single bit.
-    pub fn wrap(raw: T) -> Self {
+    fn wrap(raw: T) -> Self {
         Self(raw)
     }
 
+    /// Unwrapped MPC share.
+    fn raw(&self) -> T {
+        self.0
+    }
+}
+
+impl<T: MpcShare> BitShare<T> {
     /// Wrap plaintext boolean value.
     pub fn plain<E>(ctx: &MpcExecutionContext<E>, value: bool) -> Self
     where
@@ -41,11 +50,6 @@ impl<T: MpcShare> BitShare<T> {
         E: MpcEngine<Share = T>,
     {
         Self::wrap(ctx.engine().dealer().next_uint(1))
-    }
-
-    /// Unwrapped MPC share.
-    pub fn raw(self) -> T {
-        self.0
     }
 
     /// Open share. Requires communication.
@@ -92,53 +96,29 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Ternary IF operator.
-    pub async fn select<E: MpcEngine>(
-        self,
-        ctx: &MpcExecutionContext<E>,
-        true_val: T,
-        false_val: T,
-    ) -> T
+    pub async fn select<E, Q>(self, ctx: &MpcExecutionContext<E>, true_val: Q, false_val: Q) -> Q
     where
         E: MpcEngine<Share = T>,
+        Q: WrappedShare<Item = T>,
     {
-        let delta = true_val - false_val;
-        false_val + mul(ctx, delta, self.0).await
+        let delta = true_val.raw() - false_val.raw();
+        Q::wrap(false_val.raw() + mul(ctx, delta, self.0).await)
     }
 
     /// Returns (x, y) if self is 0, or (y, x) if self is 1.
-    pub async fn swap_if<E: MpcEngine>(self, ctx: &MpcExecutionContext<E>, x: T, y: T) -> (T, T)
+    pub async fn swap_if<E, Q>(self, ctx: &MpcExecutionContext<E>, x: Q, y: Q) -> (Q, Q)
     where
         E: MpcEngine<Share = T>,
+        Q: WrappedShare<Item = T>,
     {
-        let delta = mul(ctx, x - y, self.0).await;
-        (x - delta, y + delta)
+        let delta = mul(ctx, x.raw() - y.raw(), self.0).await;
+        (Q::wrap(x.raw() - delta), Q::wrap(y.raw() + delta))
     }
+}
 
-    /// Ternary IF operator.
-    pub async fn select_int<E: MpcEngine, const N: usize>(
-        self,
-        ctx: &MpcExecutionContext<E>,
-        true_val: IntShare<T, N>,
-        false_val: IntShare<T, N>,
-    ) -> IntShare<T, N>
-    where
-        E: MpcEngine<Share = T>,
-    {
-        IntShare::wrap(self.select(ctx, true_val.raw(), false_val.raw()).await)
-    }
-
-    /// Returns (x, y) if self is 0, or (y, x) if self is 1.
-    pub async fn swap_if_int<E: MpcEngine, const N: usize>(
-        self,
-        ctx: &MpcExecutionContext<E>,
-        x: IntShare<T, N>,
-        y: IntShare<T, N>,
-    ) -> (IntShare<T, N>, IntShare<T, N>)
-    where
-        E: MpcEngine<Share = T>,
-    {
-        let (a, b) = self.swap_if(ctx, x.raw(), y.raw()).await;
-        (IntShare::wrap(a), IntShare::wrap(b))
+impl<T: MpcShare> Default for BitShare<T> {
+    fn default() -> Self {
+        Self::zero()
     }
 }
 

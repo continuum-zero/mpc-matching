@@ -9,7 +9,7 @@ use crate::{
     MpcDealer, MpcEngine, MpcShare,
 };
 
-use super::{bitwise_compare, bitwise_equal, BitShare};
+use super::{bitwise_compare, bitwise_equal, BitShare, WrappedShare};
 
 /// Share of N-bit signed integer embedded in a prime field.
 /// Value should be in range -2^(N-1) < x < 2^(N-1) (we don't allow -2^(N-1), so each value can be negated).
@@ -17,12 +17,21 @@ use super::{bitwise_compare, bitwise_equal, BitShare};
 #[derive(Copy, Clone)]
 pub struct IntShare<T, const N: usize>(T);
 
-impl<T: MpcShare, const N: usize> IntShare<T, N> {
+impl<T: MpcShare, const N: usize> WrappedShare for IntShare<T, N> {
+    type Item = T;
+
     /// Wrap raw share. Input is assumed to be a sharing of an N-bit signed integer.
-    pub fn wrap(raw: T) -> Self {
+    fn wrap(raw: T) -> Self {
         Self(raw)
     }
 
+    /// Unwrapped MPC share.
+    fn raw(&self) -> T {
+        self.0
+    }
+}
+
+impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Wrap plain value. Input must be an N-bit signed integer.
     pub fn plain<E>(ctx: &MpcExecutionContext<E>, value: i64) -> Self
     where
@@ -63,11 +72,6 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Sharing of number from sharing of its bit decomposition.
     pub fn from_bits(bits: &[BitShare<T>; N]) -> Self {
         Self::wrap(bits_to_raw_share(bits))
-    }
-
-    /// Unwrapped MPC share.
-    pub fn raw(self) -> T {
-        self.0
     }
 
     /// Open share. Requires communication.
@@ -205,6 +209,12 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         E: MpcEngine<Share = T>,
     {
         (self - rhs).equal_zero(ctx).await
+    }
+}
+
+impl<T: MpcShare, const N: usize> Default for IntShare<T, N> {
+    fn default() -> Self {
+        Self::zero()
     }
 }
 

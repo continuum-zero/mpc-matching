@@ -15,9 +15,33 @@ pub use sequences::*;
 
 pub mod sorting;
 
+use crate::MpcShare;
 use std::{future::Future, pin::Pin, task::Poll};
 
 pub use futures; // Reexport futures crate for join_circuits! macro.
+
+/// Wrapped (or raw) MPC share.
+pub trait WrappedShare: Copy {
+    type Item: MpcShare;
+
+    /// Wrap raw MPC share.
+    fn wrap(raw: Self::Item) -> Self;
+
+    /// Unwrapped MPC share.
+    fn raw(&self) -> Self::Item;
+}
+
+impl<T: MpcShare> WrappedShare for T {
+    type Item = T;
+
+    fn wrap(raw: Self::Item) -> Self {
+        raw
+    }
+
+    fn raw(&self) -> Self::Item {
+        *self
+    }
+}
 
 /// Wait on multiple concurrent branches, returning when all branches complete.
 /// This is a variant of futures::join! macro, that guarantees deterministic polling order,

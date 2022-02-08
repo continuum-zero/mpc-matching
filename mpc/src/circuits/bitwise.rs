@@ -2,7 +2,7 @@ use crate::{
     circuits::mul, executor::MpcExecutionContext, join_circuits, MpcEngine, MpcField, MpcShare,
 };
 
-use super::{fold_tree, BitShare};
+use super::{fold_tree, BitShare, WrappedShare};
 
 /// Compare plaintext unsigned integer with a hidden integer, provided sharings of its individual bits.
 /// Returns pair of bits ([lhs < rhs], [lhs > rhs]).

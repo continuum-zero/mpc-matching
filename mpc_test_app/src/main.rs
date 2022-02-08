@@ -3,7 +3,7 @@ use std::{future::Future, pin::Pin};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 use mpc::{
-    circuits::{self, join_circuits_all, mul, IntShare},
+    circuits::{self, join_circuits_all, mul, IntShare, WrappedShare},
     executor::{self, MpcExecutionContext},
     fields::{IntoTruncated, Mersenne127},
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
