@@ -24,6 +24,25 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         }
     }
 
+    pub fn num_vertices(&self) -> usize {
+        self.adjacency.shape()[0]
+    }
+
+    pub fn set_edge<E>(
+        &mut self,
+        ctx: &MpcExecutionContext<E>,
+        from: usize,
+        to: usize,
+        cost: IntShare<T, N>,
+    ) where
+        E: MpcEngine<Share = T>,
+    {
+        self.adjacency[[from, to]] = BitShare::one(ctx);
+        self.adjacency[[to, from]] = BitShare::zero();
+        self.cost[[from, to]] = cost;
+        self.cost[[to, from]] = -cost;
+    }
+
     pub async fn min_cost_flow<E>(
         self,
         ctx: &MpcExecutionContext<E>,

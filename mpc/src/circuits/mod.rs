@@ -14,6 +14,7 @@ mod sequences;
 pub use sequences::*;
 
 pub mod flow;
+pub mod matching;
 pub mod sorting;
 
 use crate::MpcShare;

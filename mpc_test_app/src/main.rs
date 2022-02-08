@@ -3,12 +3,13 @@ use std::{future::Future, pin::Pin};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 use mpc::{
-    circuits::{self, join_circuits_all, mul, IntShare, WrappedShare},
+    circuits::{self, join_circuits_all, matching, mul, IntShare, WrappedShare},
     executor::{self, MpcExecutionContext},
     fields::{IntoTruncated, Mersenne127},
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
     transport::{self, BincodeDuplex},
 };
+use ndarray::Array;
 
 type Fp = Mersenne127;
 type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, BincodeDuplex<SpdzMessage<Fp>>>;
@@ -88,7 +89,31 @@ pub async fn sort_seq(num_parties: u64, length: u64) {
     dbg!(sorted);
 }
 
+pub async fn matching(num_parties: usize, num_verts: usize) {
+    let left_matches = run_spdz(vec![Vec::new(); num_parties], |ctx, _| {
+        Box::pin(async move {
+            let mut costs = Array::default([num_verts, num_verts]);
+
+            for i in 0..num_verts {
+                for j in 0..num_verts {
+                    let c = if i == (j + 1) % num_verts { 1 } else { 2 };
+                    costs[[i, j]] = IntShare::<_, 64>::plain(ctx, c);
+                }
+            }
+
+            let (left, _) = matching::min_cost_max_matching(ctx, costs.view()).await;
+            left.into_iter().map(|x| x.raw()).collect()
+        })
+    })
+    .await;
+    let left_matches: Vec<_> = left_matches
+        .into_iter()
+        .map(|x| x.into_truncated())
+        .collect();
+    dbg!(left_matches);
+}
+
 #[tokio::main]
 async fn main() {
-    sort_seq(20, 100).await;
+    matching(20, 10).await;
 }
