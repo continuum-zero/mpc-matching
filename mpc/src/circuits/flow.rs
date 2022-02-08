@@ -10,7 +10,7 @@ use super::{
     BitShare, IntShare,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FlowNetwork<T, const N: usize> {
     pub adjacency: Array2<BitShare<T>>,
     pub cost: Array2<IntShare<T, N>>,
@@ -51,6 +51,7 @@ struct FlowState<'a, E: MpcEngine, const N: usize> {
     adjacency: Array2<BitShare<E::Share>>,   // Original adjacency matrix, not permuted.
 }
 
+#[derive(Clone, Debug)]
 struct FlowVertexState<T, const N: usize> {
     stage: VertexProcessingStage, // Processing stage.
     weight: IntShare<T, N>, // Random weight of vertex for settling draws, when choosing next vertex to process.
@@ -59,7 +60,7 @@ struct FlowVertexState<T, const N: usize> {
     on_best_path: BitShare<T>,    // Is vertex on cheapest augmenting path?
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
 enum VertexProcessingStage {
     Relaxing,
     DijkstraProcessed,
@@ -109,12 +110,12 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
     async fn into_flow_matrix(mut self) -> Array2<IntShare<E::Share, N>> {
         // Invert permutation of vertices in residual matrix (original adjacency is not permuted).
         let swaps = generate_sorting_swaps(self.ctx, &self.permutation).await;
-        apply_swaps_to_matrix(self.ctx, self.residual.view_mut(), &swaps).await;
+        apply_swaps_to_matrix(self.ctx, self.residual.view_mut(), &swaps, 0).await;
 
-        // Flow is difference between residual capacities and original capacities.
+        // Flow is difference between original capacities and residual capacities.
         let residual = self.residual.map(|&x| x.into());
         let adjacency = self.adjacency.map(|&x| x.into());
-        residual - adjacency
+        adjacency - residual
     }
 
     /// Permute randomly all vertices from 2 to n-1 (0 is source, 1 is sink). Original adjacency matrix is left alone.
@@ -126,12 +127,8 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
 
         join_circuits!(
             apply_swaps(self.ctx, &mut self.permutation[2..], &swaps),
-            apply_swaps_to_matrix(self.ctx, self.cost.slice_mut(ndarray::s![2.., 2..]), &swaps),
-            apply_swaps_to_matrix(
-                self.ctx,
-                self.residual.slice_mut(ndarray::s![2.., 2..]),
-                &swaps,
-            ),
+            apply_swaps_to_matrix(self.ctx, self.cost.view_mut(), &swaps, 2),
+            apply_swaps_to_matrix(self.ctx, self.residual.view_mut(), &swaps, 2),
         );
     }
 
@@ -161,7 +158,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
 
         loop {
             processing_order.push(current);
-            vertices[current].stage = PathProcessed;
+            vertices[current].stage = DijkstraProcessed;
 
             let current_as_share = IntShare::plain(ctx, current as i64);
             let cur_dist = vertices[current].distance;
@@ -194,7 +191,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
             let candidates = vertices
                 .iter()
                 .enumerate()
-                .filter(|(_, vertex)| vertex.stage == Relaxing)
+                .filter(|(id, vertex)| *id >= 2 && vertex.stage == Relaxing)
                 .map(|(id, vertex)| {
                     (
                         IntShare::<_, N>::plain(ctx, id as i64),
@@ -240,13 +237,13 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         processing_order.push(1);
         vertices[1].on_best_path = vertices[1].distance.less(ctx, distance_bound).await;
 
-        for current in processing_order.into_iter().rev() {
+        for &current in processing_order.iter().rev() {
             let prev_on_path = vertices[current]
                 .on_best_path
                 .select(
                     ctx,
-                    IntShare::plain(ctx, -1),
                     vertices[current].prev_on_path,
+                    IntShare::plain(ctx, -1),
                 )
                 .await;
             vertices[current].stage = PathProcessed;
@@ -266,7 +263,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
                                 id,
                                 join_circuits!(
                                     vertex.on_best_path.or(ctx, is_prev),
-                                    is_prev.select(ctx, BitShare::zero(), residual[[id, current]]),
+                                    is_prev.not(ctx).and(ctx, residual[[id, current]]),
                                     is_prev.or(ctx, residual[[current, id]]),
                                 ),
                             )
@@ -296,5 +293,94 @@ fn swap_vertices<'a, T>(mut matrix: ArrayViewMut2<'a, T>, i: usize, j: usize) {
     }
     for k in 0..matrix.shape()[1] {
         matrix.swap([i, k], [j, k]);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ndarray::{Array, Array2};
+
+    use crate::{
+        circuits::{testing::*, *},
+        executor::MpcExecutionContext,
+    };
+
+    use super::FlowNetwork;
+
+    #[derive(Clone, Debug)]
+    struct TestNetwork {
+        adjacency: Array2<bool>,
+        cost: Array2<i64>,
+        expected_flow: Array2<i64>,
+    }
+
+    impl TestNetwork {
+        fn new(n: usize) -> Self {
+            Self {
+                adjacency: Array::default([n, n]),
+                cost: Array::default([n, n]),
+                expected_flow: Array::default([n, n]),
+            }
+        }
+
+        fn num_vertices(&self) -> usize {
+            self.adjacency.shape()[0]
+        }
+
+        fn set_edge(mut self, from: usize, to: usize, cost: i64, has_flow: bool) -> Self {
+            self.adjacency[[from, to]] = true;
+            self.adjacency[[to, from]] = false;
+            self.cost[[from, to]] = cost;
+            self.cost[[to, from]] = -cost;
+            self.expected_flow[[from, to]] = if has_flow { 1 } else { 0 };
+            self.expected_flow[[to, from]] = if has_flow { -1 } else { 0 };
+            self
+        }
+
+        fn shared(&self, ctx: &MpcExecutionContext<MockEngine>) -> FlowNetwork<MockShare, 32> {
+            FlowNetwork {
+                adjacency: self.adjacency.map(|&x| BitShare::plain(ctx, x)),
+                cost: self.cost.map(|&x| IntShare::plain(ctx, x)),
+            }
+        }
+
+        async fn test(self, source: usize, sink: usize) {
+            test_circuit(|ctx| {
+                Box::pin(async move {
+                    let shared_net = self.shared(ctx);
+                    let flow_matrix = shared_net
+                        .min_cost_flow(ctx, source, sink, self.num_vertices())
+                        .await;
+                    let flow_matrix = open_matrix(ctx, flow_matrix).await;
+                    assert_eq!(flow_matrix, self.expected_flow);
+                })
+            })
+            .await;
+        }
+    }
+
+    async fn open_matrix(
+        ctx: &MpcExecutionContext<MockEngine>,
+        matrix: Array2<IntShare<MockShare, 32>>,
+    ) -> Array2<i64> {
+        let n = matrix.shape()[0];
+        let elems = join_circuits_all(matrix.map(|x| x.open_unchecked(ctx))).await;
+        Array2::from_shape_vec([n, n], elems).unwrap()
+    }
+
+    #[tokio::test]
+    async fn test_min_cost_flow() {
+        for _ in 0..10 {
+            TestNetwork::new(5)
+                .set_edge(0, 2, 1, true)
+                .set_edge(0, 4, 5, true)
+                .set_edge(2, 4, 1, false)
+                .set_edge(2, 3, 10, false)
+                .set_edge(2, 1, 5, true)
+                .set_edge(4, 3, 1, true)
+                .set_edge(3, 1, 1, true)
+                .test(0, 1)
+                .await;
+        }
     }
 }
