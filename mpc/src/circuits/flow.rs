@@ -53,12 +53,26 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
     where
         E: MpcEngine<Share = T>,
     {
-        let mut state = FlowState::new(ctx, self);
+        let cost_bound = self.total_cost_bound(ctx).await;
+        let mut state = FlowState::new(ctx, self, cost_bound);
         state.normalize_source_and_sink(source, sink);
         for _ in 0..flow_limit {
             state.augment().await;
         }
         state.into_flow_matrix().await
+    }
+
+    async fn total_cost_bound<E>(&self, ctx: &MpcExecutionContext<E>) -> IntShare<T, N>
+    where
+        E: MpcEngine<Share = T>,
+    {
+        join_circuits_all(
+            itertools::izip!(&self.cost, &self.adjacency)
+                .map(|(&cost, is_edge)| is_edge.select(ctx, cost, IntShare::zero())),
+        )
+        .await
+        .into_iter()
+        .fold(IntShare::zero(), |acc, x| acc + x)
     }
 }
 
@@ -68,6 +82,7 @@ struct FlowState<'a, E: MpcEngine, const N: usize> {
     cost: Array2<IntShare<E::Share, N>>,     // Permuted cost matrix.
     residual: Array2<BitShare<E::Share>>,    // Permuted residual adjacency matrix.
     adjacency: Array2<BitShare<E::Share>>,   // Original adjacency matrix, not permuted.
+    cost_bound: IntShare<E::Share, N>,       // Strict upper bound on cost of cheapest path.
 }
 
 #[derive(Clone, Debug)]
@@ -88,7 +103,11 @@ enum VertexProcessingStage {
 
 impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
     /// Initial state with zero flow.
-    fn new(ctx: &'a MpcExecutionContext<E>, net: FlowNetwork<E::Share, N>) -> Self {
+    fn new(
+        ctx: &'a MpcExecutionContext<E>,
+        net: FlowNetwork<E::Share, N>,
+        cost_bound: IntShare<E::Share, N>,
+    ) -> Self {
         let n = net.adjacency.shape()[0];
         if net.adjacency.shape() != [n, n] || net.cost.shape() != [n, n] {
             panic!("Invalid input matrices");
@@ -100,6 +119,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
             cost: net.cost,
             residual: net.adjacency.to_owned(),
             adjacency: net.adjacency,
+            cost_bound: cost_bound + IntShare::one(ctx),
         }
     }
 
@@ -158,14 +178,11 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         let ctx = self.ctx;
         self.permute_randomly().await;
 
-        // TODO: set this properly
-        let distance_bound = IntShare::plain(ctx, 1000);
-
         let mut vertices: Vec<FlowVertexState<_, N>> = (0..self.num_vertices())
             .map(|_| FlowVertexState {
                 stage: Relaxing,
                 weight: IntShare::random(ctx),
-                distance: distance_bound,
+                distance: self.cost_bound,
                 prev_on_path: IntShare::zero(),
                 on_best_path: BitShare::zero(),
             })
@@ -254,7 +271,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         }
 
         processing_order.push(1);
-        vertices[1].on_best_path = vertices[1].distance.less(ctx, distance_bound).await;
+        vertices[1].on_best_path = vertices[1].distance.less(ctx, self.cost_bound).await;
 
         for &current in processing_order.iter().rev() {
             let prev_on_path = vertices[current]
