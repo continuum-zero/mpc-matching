@@ -81,7 +81,7 @@ pub async fn apply_swaps_to_matrix<'a, T, E>(
 
 /// Sort slice of shared integers. Returns list of generated swaps,
 /// which can be used to rearrange other sequences without expensive comparisons.
-/// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+/// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
 pub async fn sort<E: MpcEngine, const N: usize>(
     ctx: &MpcExecutionContext<E>,
     elems: &mut [IntShare<E::Share, N>],
@@ -128,7 +128,7 @@ pub async fn sort<E: MpcEngine, const N: usize>(
 
 /// Generate swap instructions that sort given sequence.
 /// Generated instructions can be used to rearrange other sequences without expensive comparisons.
-/// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+/// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
 pub async fn generate_sorting_swaps<E: MpcEngine, const N: usize>(
     ctx: &MpcExecutionContext<E>,
     elems: &[IntShare<E::Share, N>],

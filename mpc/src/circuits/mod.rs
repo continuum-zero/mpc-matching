@@ -107,6 +107,9 @@ pub mod testing {
     /// Field for circuits tests.
     pub type MockField = crate::fields::Mersenne127;
 
+    /// Share type for circuits tests.
+    pub type MockShare = crate::plaintext::PlainShare<MockField>;
+
     /// Fake MPC engine for circuits tests.
     pub type MockEngine = crate::plaintext::PlainMpcEngine<MockField>;
 

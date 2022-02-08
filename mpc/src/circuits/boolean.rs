@@ -5,7 +5,7 @@ use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcShare};
 use super::{mul, WrappedShare};
 
 /// Share of bit value embedded in a prime field.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct BitShare<T>(T);
 
 impl<T: MpcShare> WrappedShare for BitShare<T> {

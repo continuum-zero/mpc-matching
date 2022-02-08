@@ -11,10 +11,11 @@ use crate::{
 
 use super::{bitwise_compare, bitwise_equal, BitShare, WrappedShare};
 
-/// Share of N-bit signed integer embedded in a prime field.
-/// Value should be in range -2^(N-1) < x < 2^(N-1) (we don't allow -2^(N-1), so each value can be negated).
-/// Operations do not check for overflows - for security & privacy user needs to ensure values do not overflow.
-#[derive(Copy, Clone)]
+/// Share of N-bit signed integer embedded in a prime field, where 2 <= N <= min(Field::SAFE_BITS-1, 64).
+/// Valid values are from range [-2^(N-1); 2^(N-1)-1] and are supported by all operations,
+/// but it is allowed to overflow value temporarily during additions and subtractions.
+/// Operations do not check for overflows - for security and privacy user needs to ensure values do not overflow.
+#[derive(Copy, Clone, Debug)]
 pub struct IntShare<T, const N: usize>(T);
 
 impl<T: MpcShare, const N: usize> WrappedShare for IntShare<T, N> {
@@ -92,25 +93,34 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         Self::wrap(self.0.double())
     }
 
-    /// Remainder of N-bit integer modulo 2^k for k < N. Result is given in range [0;2^k).
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// Remainder of N-bit integer modulo 2^k for k <= N. Result is given in range [0;2^k).
+    /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
     pub async fn mod_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
     where
         E: MpcEngine<Share = T>,
     {
-        if k >= N {
-            panic!("Unsigned modulo overflows");
+        if k > N {
+            panic!("Too large k.");
         }
 
         // Adapted Mod2M algorithm from "Improved Primitives for Secure Multiparty Integer Computation"
         // (https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.220.9499&rep=rep1&type=pdf)
 
-        let (mask, low, low_bits) = random_bit_mask(ctx, k);
-        let masked_value = mask + self.raw() + ctx.plain(E::Field::power_of_two(N - 1));
+        // Normalized value is in range [1; 2^(N+1)-1]. We only need the first k <= N bits.
+        let normalized_value = self.raw() + ctx.plain(E::Field::power_of_two(N));
 
-        ctx.ensure_integrity(); // TODO: are we sure we need it to not leak anything?
+        let (mask, low, low_bits) = random_bit_mask(ctx, k);
+        let masked_value = normalized_value + mask;
+
+        // Check integrity of all computations so far, so attacker cannot compromise privacy.
+        ctx.ensure_integrity();
+
         let masked_value = ctx.open_unchecked(masked_value).await;
-        let masked_value = masked_value.into_truncated() % (1 << k);
+        let mut masked_value = masked_value.into_truncated();
+        if k < 64 {
+            masked_value %= 1 << k;
+        }
 
         let (masked_less, _) = bitwise_compare(ctx, masked_value, &low_bits).await;
         let correction = masked_less.raw() * T::Field::power_of_two(k);
@@ -119,27 +129,30 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Floor division of N-bit integer by 2^k.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
     pub async fn div_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
     where
         E: MpcEngine<Share = T>,
     {
-        let k = cmp::min(k, N - 1);
+        let k = cmp::min(k, N);
         let remainder = self.mod_power_of_two(ctx, k).await;
         Self::wrap((self.raw() - remainder.raw()) * T::Field::power_of_two_inverse(k))
     }
 
     /// Test if value is less than zero.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
     pub async fn less_than_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
-        BitShare::wrap(-self.div_power_of_two(ctx, N - 1).await.raw())
+        BitShare::wrap(-self.div_power_of_two(ctx, N).await.raw())
     }
 
     /// Test if value is greater than zero.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
     pub async fn greater_than_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
@@ -148,7 +161,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Test if self < rhs.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
     pub async fn less<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
@@ -157,7 +170,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Test if self > rhs.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
     pub async fn greater<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
@@ -166,7 +179,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Test if self <= rhs.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
     pub async fn less_eq<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
@@ -175,7 +188,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Test if self >= rhs.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
     pub async fn greater_eq<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
@@ -184,7 +197,8 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Test if value is equal to zero.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
     pub async fn equal_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
@@ -192,18 +206,24 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         // Adapted EQZ algorithm from "Improved Primitives for Secure Multiparty Integer Computation"
         // (https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.220.9499&rep=rep1&type=pdf)
 
-        let (mask, _, low_bits) = random_bit_mask(ctx, N);
-        let masked_value = mask + self.raw() + ctx.plain(E::Field::power_of_two(N - 1));
+        // Normalized value is in range [1; 2^(N+1)-1]. It is enough to test if it is 0 mod 2^N.
+        let normalized_value = self.raw() + ctx.plain(E::Field::power_of_two(N));
 
-        ctx.ensure_integrity(); // TODO: are we sure we need it to not leak anything?
+        // Masked value is in range [1; 2^SAFE_BITS + 2^(N+1) - 2] and 2^SAFE_BITS + 2^(N+1) - 2 <= 2^(SAFE_BITS+1) - 2.
+        let (mask, _, low_bits) = random_bit_mask(ctx, N);
+        let masked_value = normalized_value + mask;
+
+        // Check integrity of all computations so far, so attacker cannot compromise privacy.
+        ctx.ensure_integrity();
+
         let masked_value = ctx.open_unchecked(masked_value).await;
-        let masked_value = masked_value.into_truncated() ^ (1 << (N - 1));
+        let masked_value = masked_value.into_truncated(); // This is okay, since N <= 64.
 
         bitwise_equal(ctx, masked_value, &low_bits).await
     }
 
     /// Test if self == rhs.
-    /// Warning: guarantees only statistical privacy with (Field::SAFE_BITS - N) bits, input cannot be overflown.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
     pub async fn equal<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,

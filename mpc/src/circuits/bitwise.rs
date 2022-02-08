@@ -5,7 +5,7 @@ use crate::{
 use super::{fold_tree, BitShare, WrappedShare};
 
 /// Compare plaintext unsigned integer with a hidden integer, provided sharings of its individual bits.
-/// Returns pair of bits ([lhs < rhs], [lhs > rhs]).
+/// Only the first `rhs.len()` bits are considered. Returns pair of bits `([lhs < rhs], [lhs > rhs])`.
 pub async fn bitwise_compare<E: MpcEngine>(
     ctx: &MpcExecutionContext<E>,
     lhs: u64,
@@ -49,6 +49,7 @@ pub async fn bitwise_compare<E: MpcEngine>(
 }
 
 /// Check equality of plaintext unsigned integer with a hidden integer, provided sharings of its individual bits.
+/// Only the first `rhs.len()` bits are considered.
 pub async fn bitwise_equal<E: MpcEngine>(
     ctx: &MpcExecutionContext<E>,
     lhs: u64,

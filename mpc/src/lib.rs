@@ -5,6 +5,7 @@ pub mod plaintext;
 pub mod spdz;
 pub mod transport;
 
+use std::fmt::Debug;
 use std::ops::{Add, Mul, Neg, Sub};
 
 use async_trait::async_trait;
@@ -17,6 +18,7 @@ pub trait MpcShare:
     + Clone
     + Send
     + Sync
+    + Debug
     + Add<Output = Self>
     + Sub<Output = Self>
     + Neg<Output = Self>

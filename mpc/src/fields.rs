@@ -1,12 +1,12 @@
 /// Prime field that can be used in MPC computation.
 pub trait MpcField: ff::PrimeField + IntoTruncated<u64> {
-    /// Largest k such that 2^(k+1) doesn't overflow.
+    /// Largest k such that 2^(k+1)-2 doesn't overflow.
     const SAFE_BITS: usize;
 
-    /// Returns preprocessed integer 2^k embedded in field. Panics if k >= SAFE_BITS.
+    /// Returns preprocessed integer 2^k embedded in field. Panics if k > SAFE_BITS.
     fn power_of_two(k: usize) -> Self;
 
-    /// Returns preprocessed inverse of 2^k. Panics if k >= SAFE_BITS.
+    /// Returns preprocessed inverse of 2^k. Panics if k > SAFE_BITS.
     fn power_of_two_inverse(k: usize) -> Self;
 }
 
@@ -49,11 +49,11 @@ mod mersenne_61 {
     pub struct Mersenne61([u64; 1]);
 
     #[static_init::dynamic]
-    static POWERS_OF_TWO: PowersOfTwo<Mersenne61, { Mersenne61::SAFE_BITS }> =
+    static POWERS_OF_TWO: PowersOfTwo<Mersenne61, { Mersenne61::SAFE_BITS + 1 }> =
         PowersOfTwo::precompute();
 
     impl MpcField for Mersenne61 {
-        const SAFE_BITS: usize = 59;
+        const SAFE_BITS: usize = 60;
 
         fn power_of_two(k: usize) -> Self {
             POWERS_OF_TWO.powers[k]
@@ -125,11 +125,11 @@ mod mersenne_127 {
     pub struct Mersenne127([u64; 2]);
 
     #[static_init::dynamic]
-    static POWERS_OF_TWO: PowersOfTwo<Mersenne127, { Mersenne127::SAFE_BITS }> =
+    static POWERS_OF_TWO: PowersOfTwo<Mersenne127, { Mersenne127::SAFE_BITS + 1 }> =
         PowersOfTwo::precompute();
 
     impl MpcField for Mersenne127 {
-        const SAFE_BITS: usize = 125;
+        const SAFE_BITS: usize = 126;
 
         fn power_of_two(k: usize) -> Self {
             POWERS_OF_TWO.powers[k]

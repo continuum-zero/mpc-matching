@@ -3,7 +3,7 @@ use std::ops::{Add, Mul, Neg, Sub};
 use crate::{fields::MpcField, MpcShare};
 
 /// Value share in SPDZ protocol.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct SpdzShare<T> {
     pub(super) value: T,
     pub(super) mac: T,
