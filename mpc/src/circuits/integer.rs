@@ -67,7 +67,8 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     where
         E: MpcEngine<Share = T>,
     {
-        Self::wrap(ctx.engine().dealer().next_uint(N))
+        let shift = ctx.plain(E::Field::power_of_two(N - 1));
+        Self::wrap(ctx.engine().dealer().next_uint(N) - shift)
     }
 
     /// Sharing of number from sharing of its bit decomposition.
