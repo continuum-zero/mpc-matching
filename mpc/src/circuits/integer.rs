@@ -13,7 +13,7 @@ use super::{bitwise_compare, bitwise_equal, BitShare, WrappedShare};
 
 /// Share of N-bit signed integer embedded in a prime field, where 2 <= N <= min(Field::SAFE_BITS-1, 64).
 /// Valid values are from range [-2^(N-1); 2^(N-1)-1] and are supported by all operations,
-/// but it is allowed to overflow value temporarily during additions and subtractions.
+/// but it is allowed to overflow values temporarily during additions and subtractions.
 /// Operations do not check for overflows - for security and privacy user needs to ensure values do not overflow.
 #[derive(Copy, Clone, Debug)]
 pub struct IntShare<T, const N: usize>(T);
@@ -277,7 +277,7 @@ impl<T: MpcShare, const N: usize> Mul<i64> for IntShare<T, N> {
 fn embed_int_into_field<T: MpcField, const N: usize>(value: i64) -> T {
     if N < 64 {
         assert!(
-            value > -(1 << (N - 1)) && value < (1 << (N - 1)),
+            value >= -(1 << (N - 1)) && value < (1 << (N - 1)),
             "Input value is out of bounds"
         );
     }
