@@ -43,7 +43,7 @@ mod mersenne_61 {
 
     /// Finite field mod 2^61-1.
     #[derive(PrimeField)]
-    #[PrimeFieldModulus = "4611686018427387903"]
+    #[PrimeFieldModulus = "2305843009213693951"]
     #[PrimeFieldGenerator = "37"]
     #[PrimeFieldReprEndianness = "little"]
     pub struct Mersenne61([u64; 1]);
