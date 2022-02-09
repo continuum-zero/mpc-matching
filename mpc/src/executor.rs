@@ -4,7 +4,10 @@ use std::{
     mem,
     pin::Pin,
     task::Poll,
+    thread,
 };
+
+use tokio::sync::oneshot;
 
 use crate::*;
 
@@ -120,6 +123,35 @@ where
         let responses = ctx.engine().process_openings_unchecked(requests).await?;
         ctx.open_buffer.resolve_all(responses);
     }
+}
+
+/// Execute async circuit on a dedicated thread.
+pub async fn run_circuit_in_background<Engine, Error, F>(
+    engine: Engine,
+    inputs: Vec<Engine::Field>,
+    circuit_fn: F,
+) -> Result<Vec<Engine::Field>, Engine::Error>
+where
+    Engine: 'static + Send + MpcEngine<Error = Error>,
+    Error: 'static + Send,
+    F: 'static
+        + Send
+        + FnOnce(
+            &'_ MpcExecutionContext<Engine>,
+            Vec<Vec<Engine::Share>>,
+        ) -> Pin<Box<dyn Future<Output = Vec<Engine::Share>> + '_>>,
+{
+    let (sender, receiver) = oneshot::channel();
+    thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+
+        let future = run_circuit(engine, &inputs, circuit_fn);
+        let result = runtime.block_on(future);
+        let _ = sender.send(result);
+    });
+    receiver.await.unwrap()
 }
 
 /// Buffer for accumulating commands issued by async circuit.

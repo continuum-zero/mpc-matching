@@ -16,7 +16,9 @@ type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, BincodeDuplex<SpdzMessa
 
 async fn run_spdz<F>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> Vec<Fp>
 where
-    F: Copy
+    F: 'static
+        + Send
+        + Copy
         + Fn(
             &'_ MpcExecutionContext<MockSpdzEngine>,
             Vec<Vec<SpdzShare<Fp>>>,
@@ -29,7 +31,11 @@ where
     for (party_id, transport) in channel_matrix.into_iter().enumerate() {
         let dealer = FakeSpdzDealer::new(num_parties, party_id, 123);
         let engine = MockSpdzEngine::new(dealer, transport);
-        futures.push(executor::run_circuit(engine, &inputs[party_id], circuit_fn));
+        futures.push(executor::run_circuit_in_background(
+            engine,
+            inputs[party_id].clone(),
+            circuit_fn,
+        ));
     }
 
     let outputs: Vec<_> = futures.map(|result| result.unwrap()).collect().await;
@@ -40,7 +46,7 @@ where
 }
 
 pub async fn multiply_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
-    run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
+    run_spdz(vec![Vec::new(); num_parties as usize], move |ctx, _| {
         Box::pin(async move {
             let mut elems: Vec<_> = (0..width).map(|x| ctx.plain(Fp::from(x))).collect();
             for _ in 0..num_rounds {
@@ -53,7 +59,7 @@ pub async fn multiply_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
 }
 
 pub async fn mod2k_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
-    run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
+    run_spdz(vec![Vec::new(); num_parties as usize], move |ctx, _| {
         Box::pin(async move {
             let mut elems: Vec<IntShare<_, 64>> =
                 (0..width).map(|x| IntShare::plain(ctx, x as i64)).collect();
@@ -68,7 +74,7 @@ pub async fn mod2k_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
 }
 
 pub async fn sort_seq(num_parties: u64, length: u64) {
-    let sorted = run_spdz(vec![Vec::new(); num_parties as usize], |ctx, _| {
+    let sorted = run_spdz(vec![Vec::new(); num_parties as usize], move |ctx, _| {
         Box::pin(async move {
             let weights: Vec<IntShare<_, 64>> = (0..length)
                 .map(|x| IntShare::plain(ctx, (length - x) as i64))
@@ -90,7 +96,7 @@ pub async fn sort_seq(num_parties: u64, length: u64) {
 }
 
 pub async fn matching(num_parties: usize, num_verts: usize) {
-    let left_matches = run_spdz(vec![Vec::new(); num_parties], |ctx, _| {
+    let left_matches = run_spdz(vec![Vec::new(); num_parties], move |ctx, _| {
         Box::pin(async move {
             let mut costs = Array::default([num_verts, num_verts]);
 
