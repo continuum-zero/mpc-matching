@@ -2,7 +2,9 @@
 
 use ndarray::{Array, Array2, ArrayViewMut2};
 
-use crate::{executor::MpcExecutionContext, join_circuits, MpcEngine, MpcShare};
+use crate::{
+    circuits::WrappedShare, executor::MpcExecutionContext, join_circuits, MpcEngine, MpcShare,
+};
 
 use super::{
     fold_tree, join_circuits_all,
@@ -98,7 +100,6 @@ struct FlowVertexState<T, const N: usize> {
 enum VertexProcessingStage {
     Relaxing,
     DijkstraProcessed,
-    PathProcessed,
 }
 
 impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
@@ -273,7 +274,8 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         processing_order.push(1);
         vertices[1].on_best_path = vertices[1].distance.less(ctx, self.cost_bound).await;
 
-        for &current in processing_order.iter().rev() {
+        for i in (0..processing_order.len()).rev() {
+            let current = processing_order[i];
             let prev_on_path = vertices[current]
                 .on_best_path
                 .select(
@@ -282,36 +284,23 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
                     IntShare::plain(ctx, -1),
                 )
                 .await;
-            vertices[current].stage = PathProcessed;
 
-            let changes = {
-                let residual = &self.residual;
-                join_circuits_all(
-                    vertices
-                        .iter()
-                        .enumerate()
-                        .filter(|(_, vertex)| vertex.stage == DijkstraProcessed)
-                        .map(|(id, vertex)| async move {
-                            let is_prev = prev_on_path
-                                .equal(ctx, IntShare::plain(ctx, id as i64))
-                                .await;
-                            (
-                                id,
-                                join_circuits!(
-                                    vertex.on_best_path.or(ctx, is_prev),
-                                    is_prev.not(ctx).and(ctx, residual[[id, current]]),
-                                    is_prev.or(ctx, residual[[current, id]]),
-                                ),
-                            )
-                        }),
-                )
-                .await
-            };
+            let prev_indicators =
+                join_circuits_all(processing_order[0..i].iter().map(|&id| async move {
+                    let is_prev = prev_on_path
+                        .equal(ctx, IntShare::plain(ctx, id as i64))
+                        .await;
+                    (id, is_prev)
+                }))
+                .await;
 
-            for (id, (new_on_best_path, new_edge_fwd, new_edge_bck)) in changes {
-                vertices[id].on_best_path = new_on_best_path;
-                self.residual[[id, current]] = new_edge_fwd;
-                self.residual[[current, id]] = new_edge_bck;
+            for (id, is_prev) in prev_indicators {
+                vertices[id].on_best_path =
+                    BitShare::wrap(vertices[id].on_best_path.raw() + is_prev.raw());
+                self.residual[[id, current]] =
+                    BitShare::wrap(self.residual[[id, current]].raw() - is_prev.raw());
+                self.residual[[current, id]] =
+                    BitShare::wrap(self.residual[[current, id]].raw() + is_prev.raw());
             }
         }
 
