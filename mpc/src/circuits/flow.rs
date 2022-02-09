@@ -12,6 +12,10 @@ use super::{
     BitShare, IntShare,
 };
 
+/// Sharing of a flow network with unit capacities and edge costs.
+/// Edges must be unidirectional, i.e. `adjacency[i,j] = 0` or `adjacency[j,i] = 0`.
+/// Cost matrix must be antisymmetric, i.e. `cost[i,j] = -cost[j,i]`.
+/// Costs along the edges must be non-negative, i.e. `adjacency[i,j] => cost[i,j] >= 0`.
 #[derive(Clone, Debug)]
 pub struct FlowNetwork<T, const N: usize> {
     pub adjacency: Array2<BitShare<T>>,
@@ -19,6 +23,7 @@ pub struct FlowNetwork<T, const N: usize> {
 }
 
 impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
+    /// Create new instance for given number of vertices.
     pub fn new(num_vertices: usize) -> Self {
         Self {
             adjacency: Array::default([num_vertices, num_vertices]),
@@ -26,10 +31,12 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         }
     }
 
+    /// Number of vertices in this flow network.
     pub fn num_vertices(&self) -> usize {
         self.adjacency.shape()[0]
     }
 
+    /// Set edge direction and cost, given endpoints in plain and sharing of cost.
     pub fn set_edge<E>(
         &mut self,
         ctx: &MpcExecutionContext<E>,
@@ -45,6 +52,7 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         self.cost[[to, from]] = -cost;
     }
 
+    /// Compute min cost flow given source, sink and limit for flow amount.
     pub async fn min_cost_flow<E>(
         self,
         ctx: &MpcExecutionContext<E>,
@@ -64,13 +72,14 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         state.into_flow_matrix().await
     }
 
+    /// Get bound on cost of the most expensive path. Returns sum of costs on existing edges.
     async fn total_cost_bound<E>(&self, ctx: &MpcExecutionContext<E>) -> IntShare<T, N>
     where
         E: MpcEngine<Share = T>,
     {
         join_circuits_all(
-            itertools::izip!(&self.cost, &self.adjacency)
-                .map(|(&cost, is_edge)| is_edge.select(ctx, cost, IntShare::zero())),
+            itertools::izip!(&self.adjacency, &self.cost)
+                .map(|(is_edge, &cost)| is_edge.select(ctx, cost, IntShare::zero())),
         )
         .await
         .into_iter()
@@ -78,6 +87,7 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
     }
 }
 
+/// State of oblivious min cost flow algorithm.
 struct FlowState<'a, E: MpcEngine, const N: usize> {
     ctx: &'a MpcExecutionContext<E>,
     permutation: Vec<IntShare<E::Share, N>>, // Current permutation of vertices.
@@ -85,21 +95,17 @@ struct FlowState<'a, E: MpcEngine, const N: usize> {
     residual: Array2<BitShare<E::Share>>,    // Permuted residual adjacency matrix.
     adjacency: Array2<BitShare<E::Share>>,   // Original adjacency matrix, not permuted.
     cost_bound: IntShare<E::Share, N>,       // Strict upper bound on cost of cheapest path.
+    vertices: Vec<FlowVertexState<E::Share, N>>, // States of permuted vertices.
 }
 
+/// State of vertex in oblivious min cost flow algorithm.
 #[derive(Clone, Debug)]
 struct FlowVertexState<T, const N: usize> {
-    stage: VertexProcessingStage, // Processing stage.
-    weight: IntShare<T, N>, // Random weight of vertex for settling draws, when choosing next vertex to process.
+    weight: IntShare<T, N>, // Random weight of vertex for settling draws when choosing next vertex to process.
     distance: IntShare<T, N>, // Distance from source.
     prev_on_path: IntShare<T, N>, // Previous vertex on path from source. Undefined if vertex is unreachable.
     on_best_path: BitShare<T>,    // Is vertex on cheapest augmenting path?
-}
-
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
-enum VertexProcessingStage {
-    Relaxing,
-    DijkstraProcessed,
+    processed: bool,              // Did we process this vertex in Dijkstra loop?
 }
 
 impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
@@ -121,6 +127,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
             residual: net.adjacency.to_owned(),
             adjacency: net.adjacency,
             cost_bound: cost_bound + IntShare::one(ctx),
+            vertices: Vec::new(),
         }
     }
 
@@ -158,6 +165,28 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         adjacency - residual
     }
 
+    /// Improve flow by 1 along the cheapest augmenting path from source vertex 0 to sink vertex 1.
+    async fn augment(&mut self) {
+        self.permute_randomly().await;
+        self.reset_vertices();
+
+        let mut processing_order = vec![0];
+        self.vertices[0].distance = IntShare::zero();
+        self.vertices[0].processed = true;
+        self.relax_distances(0).await;
+
+        for _ in 2..self.num_vertices() {
+            let id = self.pick_next_vertex().await.expect("Invalid vertex"); // TODO: don't panic here
+            processing_order.push(id);
+            self.vertices[id].processed = true;
+            self.relax_distances(id).await;
+        }
+
+        processing_order.push(1);
+        self.invert_shortest_path(&processing_order).await;
+        self.update_potential();
+    }
+
     /// Permute randomly all vertices from 2 to n-1 (0 is source, 1 is sink). Original adjacency matrix is left alone.
     async fn permute_randomly(&mut self) {
         let weights: Vec<IntShare<_, N>> = (2..self.num_vertices())
@@ -172,119 +201,129 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         );
     }
 
-    /// Improve flow by 1 along the cheapest augmenting path.
-    async fn augment(&mut self) {
-        use VertexProcessingStage::*;
-
-        let ctx = self.ctx;
-        self.permute_randomly().await;
-
-        let mut vertices: Vec<FlowVertexState<_, N>> = (0..self.num_vertices())
+    /// Reset states of all vertices.
+    fn reset_vertices(&mut self) {
+        self.vertices = (0..self.num_vertices())
             .map(|_| FlowVertexState {
-                stage: Relaxing,
-                weight: IntShare::random(ctx),
+                weight: IntShare::random(self.ctx),
                 distance: self.cost_bound,
                 prev_on_path: IntShare::zero(),
                 on_best_path: BitShare::zero(),
+                processed: false,
             })
             .collect();
+    }
 
-        let mut processing_order = Vec::new();
-        let mut current = 0;
-        vertices[0].distance = IntShare::zero();
+    /// Try to improve distances of neighbours of given vertex (i.e. step of Dijkstra algorithm).
+    async fn relax_distances(&mut self, current: usize) {
+        let ctx = self.ctx;
+        let current_as_share = IntShare::plain(ctx, current as i64);
+        let cur_dist = self.vertices[current].distance;
+        let cost_row = self.cost.row_mut(current);
+        let residual_row = self.residual.row_mut(current);
 
-        loop {
-            processing_order.push(current);
-            vertices[current].stage = DijkstraProcessed;
-
-            let current_as_share = IntShare::plain(ctx, current as i64);
-            let cur_dist = vertices[current].distance;
-            let cost_row = self.cost.row_mut(current);
-            let residual_row = self.residual.row_mut(current);
-
-            join_circuits_all(
-                itertools::izip!(vertices.iter_mut(), cost_row.iter(), residual_row.iter())
-                    .filter(|(vertex, _, _)| vertex.stage == Relaxing)
-                    .map(|(vertex, &edge_cost, &has_edge)| async move {
-                        let alt_dist = cur_dist + edge_cost;
-                        let is_dist_better = alt_dist.less(ctx, vertex.distance).await;
-                        let should_change = has_edge.and(ctx, is_dist_better).await;
-
-                        let (new_dist, new_prev) = join_circuits!(
-                            should_change.select(ctx, alt_dist, vertex.distance),
-                            should_change.select(ctx, current_as_share, vertex.prev_on_path)
-                        );
-
-                        vertex.distance = new_dist;
-                        vertex.prev_on_path = new_prev;
-                    }),
+        join_circuits_all(
+            itertools::izip!(
+                self.vertices.iter_mut(),
+                residual_row.iter(),
+                cost_row.iter(),
             )
-            .await;
+            .filter(|(vertex, _, _)| !vertex.processed)
+            .map(|(vertex, &has_edge, &edge_cost)| async move {
+                let alt_dist = cur_dist + edge_cost;
+                let is_alt_dist_better = alt_dist.less(ctx, vertex.distance).await;
+                let should_change = has_edge.and(ctx, is_alt_dist_better).await;
 
-            if processing_order.len() == self.num_vertices() - 1 {
-                break;
-            }
+                let (new_dist, new_prev) = join_circuits!(
+                    should_change.select(ctx, alt_dist, vertex.distance),
+                    should_change.select(ctx, current_as_share, vertex.prev_on_path)
+                );
 
-            let candidates = vertices
-                .iter()
-                .enumerate()
-                .filter(|(id, vertex)| *id >= 2 && vertex.stage == Relaxing)
-                .map(|(id, vertex)| {
-                    (
-                        IntShare::<_, N>::plain(ctx, id as i64),
-                        vertex.distance,
-                        vertex.weight,
-                    )
-                });
+                vertex.distance = new_dist;
+                vertex.prev_on_path = new_prev;
+            }),
+        )
+        .await;
+    }
 
-            let (best_id, _, _) = fold_tree(
-                candidates,
-                (IntShare::zero(), IntShare::zero(), IntShare::zero()),
-                |(id1, dist1, weight1), (id2, dist2, weight2)| async move {
-                    let (dist1_less, dist1_equal, weight1_less) = join_circuits!(
-                        dist1.less(ctx, dist2),
-                        dist1.equal(ctx, dist2),
-                        weight1.less(ctx, weight2)
-                    );
+    /// Find unprocessed vertex other than sink, which is closest to source, and output its index in plain.
+    /// Draws between equally distanced vertices are settled using vertex weights, which should be random.
+    async fn pick_next_vertex(&mut self) -> Result<usize, ()> {
+        let ctx = self.ctx;
 
-                    let cond = dist1_less
-                        .or(ctx, dist1_equal.and(ctx, weight1_less).await)
-                        .await;
+        // 1. Build list of triples (vertex ID, distance, weight).
+        let candidates = self
+            .vertices
+            .iter()
+            .enumerate()
+            .filter(|(id, vertex)| *id >= 2 && !vertex.processed)
+            .map(|(id, vertex)| {
+                (
+                    IntShare::<_, N>::plain(self.ctx, id as i64),
+                    vertex.distance,
+                    vertex.weight,
+                )
+            });
 
-                    join_circuits!(
-                        cond.select(ctx, id1, id2),
-                        cond.select(ctx, dist1, dist2),
-                        cond.select(ctx, weight1, weight2),
-                    )
-                },
-            )
-            .await;
+        // 2. Find triple with smallest pair (distance, weight).
+        let (best_id, _, _) = fold_tree(
+            candidates,
+            (IntShare::zero(), IntShare::zero(), IntShare::zero()),
+            |(id1, dist1, weight1), (id2, dist2, weight2)| async move {
+                let (dist1_less, dist1_equal, weight1_less) = join_circuits!(
+                    dist1.less(ctx, dist2),
+                    dist1.equal(ctx, dist2),
+                    weight1.less(ctx, weight2)
+                );
 
-            ctx.ensure_integrity();
-            current = best_id.open_unchecked(ctx).await as usize;
+                let is_first_better = dist1_less
+                    .or(ctx, dist1_equal.and(ctx, weight1_less).await)
+                    .await;
 
-            if current < 2 || current >= self.num_vertices() {
-                panic!("Invalid vertex"); // TODO: don't panic, return Err
-            }
-            if vertices[current].stage != Relaxing {
-                panic!("Invalid vertex stage"); // TODO: don't panic, return Err
-            }
+                join_circuits!(
+                    is_first_better.select(ctx, id1, id2),
+                    is_first_better.select(ctx, dist1, dist2),
+                    is_first_better.select(ctx, weight1, weight2),
+                )
+            },
+        )
+        .await;
+
+        // Check integrity before opening the index in plain, so attacker cannot leak anything.
+        self.ctx.ensure_integrity();
+        let best_id = best_id.open_unchecked(self.ctx).await as usize;
+
+        if best_id >= 2 && best_id < self.num_vertices() && !self.vertices[best_id].processed {
+            Ok(best_id)
+        } else {
+            Err(())
         }
+    }
 
-        processing_order.push(1);
-        vertices[1].on_best_path = vertices[1].distance.less(ctx, self.cost_bound).await;
+    /// Invert shortest path from source vertex 0 to sink vertex 1, given Dijkstra processing order.
+    async fn invert_shortest_path(&mut self, processing_order: &[usize]) {
+        let ctx = self.ctx;
 
-        for i in (0..processing_order.len()).rev() {
+        // If distance from source to sink is equal to cost bound, then there is no path.
+        // If that's not the case, mark the sink vertex.
+        self.vertices[1].on_best_path = self.vertices[1].distance.less(ctx, self.cost_bound).await;
+
+        // If the shortest path exists, then its consecutive vertices form subsequence of processing order.
+        // We can thus iterate in the reversed order and mark vertices of shortest path one by one.
+        for i in (1..processing_order.len()).rev() {
             let current = processing_order[i];
-            let prev_on_path = vertices[current]
+
+            // If current vertex is not on the shortest path, then we set `prev_on_path` to -1, so nothing happens.
+            let prev_on_path = self.vertices[current]
                 .on_best_path
                 .select(
                     ctx,
-                    vertices[current].prev_on_path,
+                    self.vertices[current].prev_on_path,
                     IntShare::plain(ctx, -1),
                 )
                 .await;
 
+            // For each possible previous vertex, compute bit denoting if it's equal to prev_on_path.
             let prev_indicators =
                 join_circuits_all(processing_order[0..i].iter().map(|&id| async move {
                     let is_prev = prev_on_path
@@ -294,21 +333,27 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
                 }))
                 .await;
 
+            // Mark predecesssor and invert appropriate edge (if current vertex is on path).
             for (id, is_prev) in prev_indicators {
-                *vertices[id].on_best_path.raw_mut() += is_prev.raw();
+                // The following happens at most once for each vertex and edge, so it's safe to do this using addition.
+                *self.vertices[id].on_best_path.raw_mut() += is_prev.raw();
                 *self.residual[[id, current]].raw_mut() -= is_prev.raw();
                 *self.residual[[current, id]].raw_mut() += is_prev.raw();
             }
         }
+    }
 
+    /// Update edge costs after inverting path, so that they are non-negative and shortest paths don't change.
+    fn update_potential(&mut self) {
         for i in 0..self.num_vertices() {
             for j in 0..self.num_vertices() {
-                self.cost[[i, j]] = self.cost[[i, j]] + vertices[i].distance - vertices[j].distance;
+                self.cost[[i, j]] += self.vertices[i].distance - self.vertices[j].distance;
             }
         }
     }
 }
 
+/// Update matrix so that vertices `i` and `j` are swapped.
 fn swap_vertices<'a, T>(mut matrix: ArrayViewMut2<'a, T>, i: usize, j: usize) {
     for k in 0..matrix.shape()[0] {
         matrix.swap([k, i], [k, j]);
