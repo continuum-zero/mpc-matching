@@ -4,16 +4,19 @@ use ndarray::ArrayView2;
 
 use crate::{executor::MpcExecutionContext, MpcEngine};
 
-use super::{flow::FlowNetwork, IntShare};
+use super::{
+    flow::{FlowError, FlowNetwork},
+    IntShare,
+};
 
 /// Given a square matrix of costs, compute perfect bipartite matching with smallest total cost.
 pub async fn min_cost_bipartite_matching<'a, E: MpcEngine + 'a, const N: usize>(
     ctx: &MpcExecutionContext<E>,
     costs: ArrayView2<'a, IntShare<E::Share, N>>,
-) -> (Vec<IntShare<E::Share, N>>, Vec<IntShare<E::Share, N>>) {
+) -> Result<(Vec<IntShare<E::Share, N>>, Vec<IntShare<E::Share, N>>), FlowError> {
     let n = costs.shape()[0];
     if costs.shape() != [n, n] || costs.shape() != [n, n] {
-        panic!("Invalid input matrix");
+        panic!("Cost matrix must be a square matrix");
     }
 
     // We use the standard reduction from bipartite matching to a flow problem.
@@ -32,7 +35,7 @@ pub async fn min_cost_bipartite_matching<'a, E: MpcEngine + 'a, const N: usize>(
         }
     }
 
-    let flow_matrix = network.min_cost_flow(ctx, 0, 1, n).await;
+    let flow_matrix = network.min_cost_flow(ctx, 0, 1, n).await?;
 
     let mut left_matches = vec![IntShare::zero(); n];
     let mut right_matches = vec![IntShare::zero(); n];
@@ -46,7 +49,7 @@ pub async fn min_cost_bipartite_matching<'a, E: MpcEngine + 'a, const N: usize>(
         }
     }
 
-    (left_matches, right_matches)
+    Ok((left_matches, right_matches))
 }
 
 #[cfg(test)]
@@ -69,7 +72,9 @@ mod tests {
 
                 let cost_matrix = cost_matrix.map(|&x| IntShare::<_, 16>::plain(ctx, x));
                 let (left_matches, right_matches) =
-                    min_cost_bipartite_matching(ctx, cost_matrix.view()).await;
+                    min_cost_bipartite_matching(ctx, cost_matrix.view())
+                        .await
+                        .unwrap();
 
                 let left_matches =
                     join_circuits_all(left_matches.into_iter().map(|x| x.open_unchecked(ctx)))

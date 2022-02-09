@@ -101,7 +101,9 @@ pub async fn matching(num_parties: usize, num_verts: usize) {
                 }
             }
 
-            let (left, _) = matching::min_cost_bipartite_matching(ctx, costs.view()).await;
+            let (left, _) = matching::min_cost_bipartite_matching(ctx, costs.view())
+                .await
+                .unwrap();
             left.into_iter().map(|x| x.raw()).collect()
         })
     })

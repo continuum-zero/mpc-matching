@@ -1,3 +1,5 @@
+use std::fmt;
+
 use futures::{
     stream::{SplitSink, SplitStream},
     FutureExt, Sink, SinkExt, Stream, StreamExt, TryFutureExt,
@@ -8,10 +10,19 @@ use tokio_serde::formats::Bincode;
 use tokio_util::codec::LengthDelimitedCodec;
 
 /// Error type for channels.
-#[derive(Copy, Clone, Debug)]
-pub enum ChannelError {
-    Send,
-    Recv,
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum TransportError {
+    Send(usize),
+    Recv(usize),
+}
+
+impl fmt::Display for TransportError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Send(id) => write!(f, "Error while sending message to {}", id),
+            Self::Recv(id) => write!(f, "Error while receiving message from {}", id),
+        }
+    }
 }
 
 /// Wrapper for peer-to-peer connections in multi-party protocol.
@@ -56,44 +67,47 @@ where
     Channel: Stream<Item = Result<T, E>> + Sink<T> + Unpin,
 {
     /// Send message to party with given ID.
-    pub async fn send_to(&mut self, other_id: usize, msg: T) -> Result<(), ChannelError> {
+    pub async fn send_to(&mut self, other_id: usize, msg: T) -> Result<(), TransportError> {
         if other_id == self.party_id {
             panic!("Cannot send message on loopback");
         }
         let (sink, _) = self.channels[other_id].as_mut().unwrap();
-        sink.send(msg).await.map_err(|_| ChannelError::Send)
+        sink.send(msg)
+            .await
+            .map_err(|_| TransportError::Send(other_id))
     }
 
     /// Receive message from party wit given ID.
-    pub async fn receive_from(&mut self, other_id: usize) -> Result<T, ChannelError> {
+    pub async fn receive_from(&mut self, other_id: usize) -> Result<T, TransportError> {
         if other_id == self.party_id {
             panic!("Cannot receive message on loopback");
         }
         let (_, stream) = self.channels[other_id].as_mut().unwrap();
         match stream.next().await {
             Some(Ok(msg)) => Ok(msg),
-            _ => Err(ChannelError::Recv),
+            _ => Err(TransportError::Recv(other_id)),
         }
     }
 
     /// Send message to all parties.
-    pub async fn send_to_all(&mut self, msg: T) -> Result<(), ChannelError> {
+    pub async fn send_to_all(&mut self, msg: T) -> Result<(), TransportError> {
         futures::future::try_join_all(
             self.channels
                 .iter_mut()
                 .enumerate()
                 .filter(|(id, _)| *id != self.party_id)
-                .map(|(_, channel)| {
+                .map(|(id, channel)| {
                     let (sink, _) = channel.as_mut().unwrap();
                     sink.send(msg.clone())
+                        .then(move |x| async move { x.map_err(|_| TransportError::Send(id)) })
                 }),
         )
         .await
-        .map_or(Err(ChannelError::Send), |_| Ok(()))
+        .map(|_| ())
     }
 
     /// Receive messages from all parties.
-    pub async fn receive_from_all(&mut self) -> Result<Vec<(usize, T)>, ChannelError> {
+    pub async fn receive_from_all(&mut self) -> Result<Vec<(usize, T)>, TransportError> {
         futures::future::try_join_all(
             self.channels
                 .iter_mut()
@@ -104,7 +118,7 @@ where
                     stream.next().then(move |raw| async move {
                         match raw {
                             Some(Ok(msg)) => Ok((id, msg)),
-                            _ => Err(ChannelError::Recv),
+                            _ => Err(TransportError::Recv(id)),
                         }
                     })
                 }),
@@ -113,7 +127,7 @@ where
     }
 
     /// Concurrently send and receive messages from all parties.
-    pub async fn exchange_with_all(&mut self, msg: T) -> Result<Vec<(usize, T)>, ChannelError> {
+    pub async fn exchange_with_all(&mut self, msg: T) -> Result<Vec<(usize, T)>, TransportError> {
         futures::future::try_join_all(
             self.channels
                 .iter_mut()
@@ -123,11 +137,11 @@ where
                     let (sink, stream) = channel.as_mut().unwrap();
                     let send_future = sink
                         .send(msg.clone())
-                        .then(|x| async { x.map_err(|_| ChannelError::Send) });
+                        .then(move |x| async move { x.map_err(|_| TransportError::Send(id)) });
                     let recv_future = stream.next().then(move |raw| async move {
                         match raw {
                             Some(Ok(msg)) => Ok((id, msg)),
-                            _ => Err(ChannelError::Recv),
+                            _ => Err(TransportError::Recv(id)),
                         }
                     });
                     futures::future::try_join(send_future, recv_future)

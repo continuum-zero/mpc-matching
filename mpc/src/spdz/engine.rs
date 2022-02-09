@@ -1,4 +1,4 @@
-use std::mem;
+use std::{fmt, mem};
 
 use async_trait::async_trait;
 use digest::Digest;
@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     fields::MpcField,
-    transport::{ChannelError, MultipartyTransport},
+    transport::{MultipartyTransport, TransportError},
     MpcContext, MpcEngine,
 };
 
@@ -35,19 +35,36 @@ pub enum SpdzMessage<T> {
 }
 
 /// SPDZ error.
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub enum SpdzError {
-    Send,
-    Recv,
-    Protocol(&'static str),
+    Transport(TransportError),
+    UnexpectedMessage(usize),
+    IncorrectNumberOfValues(usize),
+    CommitmentHashMismatch(usize),
+    StateHashMismatch,
+    MacCheckFailed,
 }
 
-impl From<ChannelError> for SpdzError {
-    fn from(err: ChannelError) -> Self {
-        match err {
-            ChannelError::Send => SpdzError::Send,
-            ChannelError::Recv => SpdzError::Recv,
+impl fmt::Display for SpdzError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Transport(ref inner) => inner.fmt(f),
+            Self::UnexpectedMessage(id) => write!(f, "Received unexpected message from {}", id),
+            Self::IncorrectNumberOfValues(id) => {
+                write!(f, "Received incorrect number of values from {}", id)
+            }
+            Self::CommitmentHashMismatch(id) => {
+                write!(f, "Commitment hash doesn't match reveal value for {}", id)
+            }
+            Self::StateHashMismatch => write!(f, "State hashes do not match"),
+            Self::MacCheckFailed => write!(f, "MAC check failed"),
         }
+    }
+}
+
+impl From<TransportError> for SpdzError {
+    fn from(err: TransportError) -> Self {
+        SpdzError::Transport(err)
     }
 }
 
@@ -145,7 +162,7 @@ where
                 all_shares[other_id] = other_shares;
                 all_deltas[other_id] = other_deltas;
             } else {
-                return Err(SpdzError::Protocol("Unexpected message"));
+                return Err(SpdzError::UnexpectedMessage(other_id));
             }
         }
 
@@ -167,16 +184,16 @@ where
         let values_count = values.len();
 
         if self.party_id() == 0 {
-            for (_, msg) in self.transport.receive_from_all().await? {
+            for (other_id, msg) in self.transport.receive_from_all().await? {
                 if let SpdzMessage::SharesExchange(parts) = msg {
                     if parts.len() != values_count {
-                        return Err(SpdzError::Protocol("Received incorrect number of shares"));
+                        return Err(SpdzError::IncorrectNumberOfValues(other_id));
                     }
                     for (i, part) in parts.into_iter().enumerate() {
                         values[i] += part;
                     }
                 } else {
-                    return Err(SpdzError::Protocol("Unexpected message"));
+                    return Err(SpdzError::UnexpectedMessage(other_id));
                 }
             }
             self.transport
@@ -188,11 +205,11 @@ where
                 .await?;
             if let SpdzMessage::ShareSumExchange(sums) = self.transport.receive_from(0).await? {
                 if sums.len() != values_count {
-                    return Err(SpdzError::Protocol("Received incorrect number of values"));
+                    return Err(SpdzError::IncorrectNumberOfValues(0));
                 }
                 values = sums;
             } else {
-                return Err(SpdzError::Protocol("Unexpected message"));
+                return Err(SpdzError::UnexpectedMessage(0));
             }
         }
 
@@ -225,7 +242,7 @@ where
             let check_plain = shares.into_iter().fold(T::zero(), |acc, x| acc + x);
 
             if check_plain != T::zero() {
-                return Err(SpdzError::Protocol("MAC check failed"));
+                return Err(SpdzError::MacCheckFailed);
             }
 
             // Ensure broadcasted values were consistent by including their combination in state hash.
@@ -251,7 +268,7 @@ where
         if received.into_iter().all(|(_, other_msg)| other_msg == msg) {
             Ok(())
         } else {
-            Err(SpdzError::Protocol("State hashes do not match"))
+            Err(SpdzError::StateHashMismatch)
         }
     }
 
@@ -279,7 +296,7 @@ where
             if let SpdzMessage::Commitment(other_hash) = msg {
                 all_hashes[other_id] = other_hash;
             } else {
-                return Err(SpdzError::Protocol("Unexpected message"));
+                return Err(SpdzError::UnexpectedMessage(other_id));
             }
         }
 
@@ -300,11 +317,11 @@ where
             if let SpdzMessage::Decommitment(other_elem, other_salt) = msg {
                 let other_hash = commit_value(other_elem, other_salt);
                 if all_hashes[other_id] != other_hash {
-                    return Err(SpdzError::Protocol("Commitment hash mismatch"));
+                    return Err(SpdzError::CommitmentHashMismatch(other_id));
                 }
                 all_elems[other_id] = other_elem;
             } else {
-                return Err(SpdzError::Protocol("Unexpected message"));
+                return Err(SpdzError::UnexpectedMessage(other_id));
             }
         }
 

@@ -1,5 +1,7 @@
 // TODO: These circuits will be moved later to another crate.
 
+use std::fmt;
+
 use ndarray::{Array, Array2, ArrayViewMut2};
 
 use crate::{
@@ -11,6 +13,20 @@ use super::{
     sorting::{apply_swaps, apply_swaps_to_matrix, generate_sorting_swaps},
     BitShare, IntShare,
 };
+
+/// Error during oblivious flow computation.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FlowError {
+    PickedInvalidVertex,
+}
+
+impl fmt::Display for FlowError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::PickedInvalidVertex => write!(f, "Next vertex to process is invalid"),
+        }
+    }
+}
 
 /// Sharing of a flow network with unit capacities and edge costs.
 /// Edges must be unidirectional, i.e. `adjacency[i,j] = 0` or `adjacency[j,i] = 0`.
@@ -59,7 +75,7 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         source: usize,
         sink: usize,
         flow_limit: usize,
-    ) -> Array2<IntShare<T, N>>
+    ) -> Result<Array2<IntShare<T, N>>, FlowError>
     where
         E: MpcEngine<Share = T>,
     {
@@ -67,9 +83,9 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         let mut state = FlowState::new(ctx, self, cost_bound);
         state.normalize_source_and_sink(source, sink);
         for _ in 0..flow_limit {
-            state.augment().await;
+            state.augment().await?;
         }
-        state.into_flow_matrix().await
+        Ok(state.into_flow_matrix().await)
     }
 
     /// Get bound on cost of the most expensive path. Returns sum of costs on existing edges.
@@ -166,7 +182,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
     }
 
     /// Improve flow by 1 along the cheapest augmenting path from source vertex 0 to sink vertex 1.
-    async fn augment(&mut self) {
+    async fn augment(&mut self) -> Result<(), FlowError> {
         self.permute_randomly().await;
         self.reset_vertices();
 
@@ -176,7 +192,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         self.relax_distances(0).await;
 
         for _ in 2..self.num_vertices() {
-            let id = self.pick_next_vertex().await.expect("Invalid vertex"); // TODO: don't panic here
+            let id = self.pick_next_vertex().await?;
             processing_order.push(id);
             self.vertices[id].processed = true;
             self.relax_distances(id).await;
@@ -185,6 +201,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         processing_order.push(1);
         self.invert_shortest_path(&processing_order).await;
         self.update_potential();
+        Ok(())
     }
 
     /// Permute randomly all vertices from 2 to n-1 (0 is source, 1 is sink). Original adjacency matrix is left alone.
@@ -248,7 +265,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
 
     /// Find unprocessed vertex other than sink, which is closest to source, and output its index in plain.
     /// Draws between equally distanced vertices are settled using vertex weights, which should be random.
-    async fn pick_next_vertex(&mut self) -> Result<usize, ()> {
+    async fn pick_next_vertex(&mut self) -> Result<usize, FlowError> {
         let ctx = self.ctx;
 
         // 1. Build list of triples (vertex ID, distance, weight).
@@ -296,7 +313,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         if best_id >= 2 && best_id < self.num_vertices() && !self.vertices[best_id].processed {
             Ok(best_id)
         } else {
-            Err(())
+            Err(FlowError::PickedInvalidVertex)
         }
     }
 
@@ -417,7 +434,8 @@ mod tests {
                     let shared_net = self.shared(ctx);
                     let flow_matrix = shared_net
                         .min_cost_flow(ctx, source, sink, self.num_vertices())
-                        .await;
+                        .await
+                        .unwrap();
                     let flow_matrix = open_matrix(ctx, flow_matrix).await;
                     assert_eq!(flow_matrix, self.expected_flow);
                 })
@@ -437,17 +455,15 @@ mod tests {
 
     #[tokio::test]
     async fn test_min_cost_flow() {
-        for _ in 0..10 {
-            TestNetwork::new(5)
-                .set_edge(0, 2, 1, true)
-                .set_edge(0, 4, 5, true)
-                .set_edge(2, 4, 1, false)
-                .set_edge(2, 3, 10, false)
-                .set_edge(2, 1, 5, true)
-                .set_edge(4, 3, 1, true)
-                .set_edge(3, 1, 1, true)
-                .test(0, 1)
-                .await;
-        }
+        TestNetwork::new(5)
+            .set_edge(0, 2, 1, true)
+            .set_edge(0, 4, 5, true)
+            .set_edge(2, 4, 1, false)
+            .set_edge(2, 3, 10, false)
+            .set_edge(2, 1, 5, true)
+            .set_edge(4, 3, 1, true)
+            .set_edge(3, 1, 1, true)
+            .test(0, 1)
+            .await;
     }
 }
