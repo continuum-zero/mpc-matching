@@ -39,6 +39,12 @@ impl<T> PlainMpcEngine<T> {
     }
 }
 
+impl<T> Default for PlainMpcEngine<T> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl<T: MpcField> MpcContext for PlainMpcEngine<T> {
     type Field = T;
     type Share = PlainShare<T>;

@@ -25,9 +25,12 @@ impl fmt::Display for TransportError {
     }
 }
 
+/// Halves of split channel.
+type ChannelHalves<C, T> = (SplitSink<C, T>, SplitStream<C>);
+
 /// Wrapper for peer-to-peer connections in multi-party protocol.
 pub struct MultipartyTransport<T, Channel> {
-    channels: Vec<Option<(SplitSink<Channel, T>, SplitStream<Channel>)>>,
+    channels: Vec<Option<ChannelHalves<Channel, T>>>,
     party_id: usize,
 }
 

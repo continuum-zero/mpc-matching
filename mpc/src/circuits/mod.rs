@@ -74,7 +74,7 @@ where
 {
     let mut futures: Pin<Box<_>> = futures
         .into_iter()
-        .map(|f| futures::future::maybe_done(f))
+        .map(futures::future::maybe_done)
         .collect::<Box<_>>()
         .into();
 

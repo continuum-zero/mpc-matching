@@ -3,9 +3,12 @@ use crate::{executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine};
 /// Multiply two shared values.
 /// Cost: 1 Beaver triple, 2 partial openings, 1 communication round.
 pub async fn mul<E: MpcEngine>(ctx: &MpcExecutionContext<E>, x: E::Share, y: E::Share) -> E::Share {
-    let (a, b, c) = ctx.engine().dealer().next_beaver_triple();
-    let (e, d) = join_circuits!(ctx.open_unchecked(x - a), ctx.open_unchecked(y - b));
-    c + b * e + a * d + ctx.plain(e * d)
+    let (mask_for_x, mask_for_y, mask_for_xy) = ctx.engine().dealer().next_beaver_triple();
+    let (masked_x, masked_y) = join_circuits!(
+        ctx.open_unchecked(x - mask_for_x),
+        ctx.open_unchecked(y - mask_for_y)
+    );
+    mask_for_xy + mask_for_y * masked_x + mask_for_x * masked_y + ctx.plain(masked_x * masked_y)
 }
 
 #[cfg(test)]

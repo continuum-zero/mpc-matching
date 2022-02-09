@@ -151,8 +151,8 @@ mod tests {
             Box::pin(async {
                 let zero = BitShare::zero();
                 let one = BitShare::one(ctx);
-                assert_eq!(zero.open_unchecked(ctx).await, false);
-                assert_eq!(one.open_unchecked(ctx).await, true);
+                assert!(!zero.open_unchecked(ctx).await);
+                assert!(one.open_unchecked(ctx).await);
             })
         })
         .await;

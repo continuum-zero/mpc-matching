@@ -188,7 +188,7 @@ impl<T, S> RoundCommandBuffer<T, S> {
 
         requests.clear();
         responses.clear();
-        responses.extend(new_responses.into_iter().map(|x| Some(x)));
+        responses.extend(new_responses.into_iter().map(Some));
         self.round_index.set(self.round_index.get().wrapping_add(1));
         self.first_unpolled_response.set(0);
     }

@@ -371,7 +371,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
 }
 
 /// Update matrix so that vertices `i` and `j` are swapped.
-fn swap_vertices<'a, T>(mut matrix: ArrayViewMut2<'a, T>, i: usize, j: usize) {
+fn swap_vertices<T>(mut matrix: ArrayViewMut2<T>, i: usize, j: usize) {
     for k in 0..matrix.shape()[0] {
         matrix.swap([k, i], [k, j]);
     }

@@ -3,11 +3,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::{
-    executor::MpcExecutionContext,
-    fields::{IntoTruncated, MpcField},
-    MpcDealer, MpcEngine, MpcShare,
-};
+use crate::{executor::MpcExecutionContext, fields::MpcField, MpcDealer, MpcEngine, MpcShare};
 
 use super::{bitwise_compare, bitwise_equal, BitShare, WrappedShare};
 
@@ -89,7 +85,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     {
         let opened = ctx.open_unchecked(self.0).await;
         let unsigned: u64 = (opened + E::Field::power_of_two(N - 1))
-            .into_truncated()
+            .truncated()
             .wrapping_sub(1u64 << (N - 1));
         unsigned as i64
     }
@@ -123,7 +119,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         ctx.ensure_integrity();
 
         let masked_value = ctx.open_unchecked(masked_value).await;
-        let mut masked_value = masked_value.into_truncated();
+        let mut masked_value = masked_value.truncated();
         if k < 64 {
             masked_value %= 1 << k;
         }
@@ -223,7 +219,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         ctx.ensure_integrity();
 
         let masked_value = ctx.open_unchecked(masked_value).await;
-        let masked_value = masked_value.into_truncated(); // This is okay, since N <= 64.
+        let masked_value = masked_value.truncated(); // This is okay, since N <= 64.
 
         bitwise_equal(ctx, masked_value, &low_bits).await
     }
@@ -306,8 +302,11 @@ fn embed_int_into_field<T: MpcField, const N: usize>(value: i64) -> T {
         );
     }
     let elem = T::from(value.unsigned_abs());
-    let elem = if value < 0 { -elem } else { elem };
-    elem
+    if value < 0 {
+        -elem
+    } else {
+        elem
+    }
 }
 
 /// Combine sharing of bits into shared integer.

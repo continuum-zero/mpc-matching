@@ -1,5 +1,5 @@
 /// Prime field that can be used in MPC computation.
-pub trait MpcField: ff::PrimeField + IntoTruncated<u64> {
+pub trait MpcField: ff::PrimeField {
     /// Largest k such that 2^(k+1)-2 doesn't overflow.
     const SAFE_BITS: usize;
 
@@ -8,12 +8,9 @@ pub trait MpcField: ff::PrimeField + IntoTruncated<u64> {
 
     /// Returns preprocessed inverse of 2^k. Panics if k > SAFE_BITS.
     fn power_of_two_inverse(k: usize) -> Self;
-}
 
-/// Conversion into smaller integer type with truncation.
-pub trait IntoTruncated<T> {
-    /// Convert with truncation.
-    fn into_truncated(&self) -> T;
+    /// Convert to u64 by truncating remaining bits.
+    fn truncated(&self) -> u64;
 }
 
 /// Precomputed powers of two and their inverses.
@@ -39,7 +36,7 @@ mod mersenne_61 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{IntoTruncated, MpcField, PowersOfTwo};
+    use super::{MpcField, PowersOfTwo};
 
     /// Finite field mod 2^61-1.
     #[derive(PrimeField)]
@@ -62,10 +59,8 @@ mod mersenne_61 {
         fn power_of_two_inverse(k: usize) -> Self {
             POWERS_OF_TWO.inverses[k]
         }
-    }
 
-    impl IntoTruncated<u64> for Mersenne61 {
-        fn into_truncated(&self) -> u64 {
+        fn truncated(&self) -> u64 {
             // ff::PrimeField stores value multiplied by constant.
             // We can invert it by multiplying with element that has representation [1].
             const R2_INV: Mersenne61 = Mersenne61([1]);
@@ -89,7 +84,7 @@ mod mersenne_61 {
 
     #[cfg(test)]
     mod tests {
-        use crate::fields::IntoTruncated;
+        use crate::fields::MpcField;
 
         use super::Mersenne61;
 
@@ -105,7 +100,7 @@ mod mersenne_61 {
         fn test_truncation() {
             let int_value = 123456789012345678;
             let field_value = Mersenne61::from(int_value);
-            let trunc_value = field_value.into_truncated();
+            let trunc_value = field_value.truncated();
             assert_eq!(trunc_value, int_value);
         }
     }
@@ -115,7 +110,7 @@ mod mersenne_127 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{IntoTruncated, MpcField, PowersOfTwo};
+    use super::{MpcField, PowersOfTwo};
 
     /// Finite field mod 2^127-1.
     #[derive(PrimeField)]
@@ -138,10 +133,8 @@ mod mersenne_127 {
         fn power_of_two_inverse(k: usize) -> Self {
             POWERS_OF_TWO.inverses[k]
         }
-    }
 
-    impl IntoTruncated<u64> for Mersenne127 {
-        fn into_truncated(&self) -> u64 {
+        fn truncated(&self) -> u64 {
             // ff::PrimeField stores value multiplied by constant.
             // We can invert it by multiplying with element that has representation [1, 0].
             // Lower limb represents the first 64 bits (little endian).
@@ -168,7 +161,7 @@ mod mersenne_127 {
     mod tests {
         use ff::PrimeField;
 
-        use crate::fields::IntoTruncated;
+        use crate::fields::MpcField;
 
         use super::Mersenne127;
 
@@ -183,7 +176,7 @@ mod mersenne_127 {
         #[test]
         fn test_truncation() {
             let value = Mersenne127::from_str_vartime("1234567890123456789012345678901").unwrap();
-            let trunc_value = value.into_truncated();
+            let trunc_value = value.truncated();
             assert_eq!(trunc_value, 11711269222405794869);
         }
     }

@@ -5,7 +5,7 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use mpc::{
     circuits::{self, join_circuits_all, matching, mul, IntShare, WrappedShare},
     executor::{self, MpcExecutionContext},
-    fields::{IntoTruncated, Mersenne127},
+    fields::{Mersenne127, MpcField},
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
     transport::{self, BincodeDuplex},
 };
@@ -85,7 +85,7 @@ pub async fn sort_seq(num_parties: u64, length: u64) {
         })
     })
     .await;
-    let sorted: Vec<_> = sorted.into_iter().map(|x| x.into_truncated()).collect();
+    let sorted: Vec<_> = sorted.into_iter().map(|x| x.truncated()).collect();
     dbg!(sorted);
 }
 
@@ -108,10 +108,7 @@ pub async fn matching(num_parties: usize, num_verts: usize) {
         })
     })
     .await;
-    let left_matches: Vec<_> = left_matches
-        .into_iter()
-        .map(|x| x.into_truncated())
-        .collect();
+    let left_matches: Vec<_> = left_matches.into_iter().map(|x| x.truncated()).collect();
     dbg!(left_matches);
 }
 

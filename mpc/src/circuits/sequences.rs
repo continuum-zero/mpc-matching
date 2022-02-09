@@ -14,12 +14,11 @@ enum SingleOrPair<T> {
 
 /// Batch iterator into pairs and maybe a leftover single element.
 fn batch_pairs<T>(it: impl IntoIterator<Item = T>) -> impl Iterator<Item = SingleOrPair<T>> {
-    it.into_iter().batching(|it| match it.next() {
-        Some(first) => Some(match it.next() {
+    it.into_iter().batching(|it| {
+        it.next().map(|first| match it.next() {
             Some(second) => SingleOrPair::Pair(first, second),
             None => SingleOrPair::Single(first),
-        }),
-        None => None,
+        })
     })
 }
 
@@ -67,7 +66,7 @@ mod tests {
             Box::pin(async {
                 let elems = [2, 5, 7, 11, 13, 17, 19, 1, 2, 3].map(|x| x.into());
                 let expected = elems.iter().fold(MockField::one(), |x, y| x * y);
-                let result = product(ctx, elems.map(|x| PlainShare(x))).await;
+                let result = product(ctx, elems.map(PlainShare)).await;
                 assert_eq!(result.0, expected);
             })
         })

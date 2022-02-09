@@ -28,7 +28,7 @@ pub async fn apply_swaps_round<'a, T, E>(
     let mut elems = elems.into();
     let results = {
         let elems = elems.view(); // Borrow as immutable, so we can use it asynchronously below.
-        join_circuits_all(instructions.into_iter().map(|inst| async move {
+        join_circuits_all(instructions.iter().map(|inst| async move {
             (
                 inst.first_index,
                 inst.second_index,
