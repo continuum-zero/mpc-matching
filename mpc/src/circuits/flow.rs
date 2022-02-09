@@ -253,7 +253,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
 
                 let (new_dist, new_prev) = join_circuits!(
                     should_change.select(ctx, alt_dist, vertex.distance),
-                    should_change.select(ctx, current_as_share, vertex.prev_on_path)
+                    should_change.select(ctx, current_as_share, vertex.prev_on_path),
                 );
 
                 vertex.distance = new_dist;
@@ -290,7 +290,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
                 let (dist1_less, dist1_equal, weight1_less) = join_circuits!(
                     dist1.less(ctx, dist2),
                     dist1.equal(ctx, dist2),
-                    weight1.less(ctx, weight2)
+                    weight1.less(ctx, weight2),
                 );
 
                 let is_first_better = dist1_less

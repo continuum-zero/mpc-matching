@@ -6,7 +6,7 @@ pub async fn mul<E: MpcEngine>(ctx: &MpcExecutionContext<E>, x: E::Share, y: E::
     let (mask_for_x, mask_for_y, mask_for_xy) = ctx.engine().dealer().next_beaver_triple();
     let (masked_x, masked_y) = join_circuits!(
         ctx.open_unchecked(x - mask_for_x),
-        ctx.open_unchecked(y - mask_for_y)
+        ctx.open_unchecked(y - mask_for_y),
     );
     mask_for_xy + mask_for_y * masked_x + mask_for_x * masked_y + ctx.plain(masked_x * masked_y)
 }
