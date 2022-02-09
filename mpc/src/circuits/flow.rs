@@ -295,12 +295,9 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
                 .await;
 
             for (id, is_prev) in prev_indicators {
-                vertices[id].on_best_path =
-                    BitShare::wrap(vertices[id].on_best_path.raw() + is_prev.raw());
-                self.residual[[id, current]] =
-                    BitShare::wrap(self.residual[[id, current]].raw() - is_prev.raw());
-                self.residual[[current, id]] =
-                    BitShare::wrap(self.residual[[current, id]].raw() + is_prev.raw());
+                *vertices[id].on_best_path.raw_mut() += is_prev.raw();
+                *self.residual[[id, current]].raw_mut() -= is_prev.raw();
+                *self.residual[[current, id]].raw_mut() += is_prev.raw();
             }
         }
 

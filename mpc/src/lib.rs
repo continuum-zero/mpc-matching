@@ -6,7 +6,7 @@ pub mod spdz;
 pub mod transport;
 
 use std::fmt::Debug;
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use async_trait::async_trait;
 use fields::MpcField;
@@ -23,6 +23,9 @@ pub trait MpcShare:
     + Sub<Output = Self>
     + Neg<Output = Self>
     + Mul<Self::Field, Output = Self>
+    + AddAssign
+    + SubAssign
+    + MulAssign<Self::Field>
 {
     /// Field type of value represented by this share.
     type Field: MpcField;

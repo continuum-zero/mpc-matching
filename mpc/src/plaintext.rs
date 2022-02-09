@@ -145,3 +145,21 @@ impl<T: MpcField> Mul<T> for PlainShare<T> {
         PlainShare(self.0 * rhs)
     }
 }
+
+impl<T: MpcField> AddAssign for PlainShare<T> {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
+
+impl<T: MpcField> SubAssign for PlainShare<T> {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0;
+    }
+}
+
+impl<T: MpcField> MulAssign<T> for PlainShare<T> {
+    fn mul_assign(&mut self, rhs: T) {
+        self.0 *= rhs;
+    }
+}

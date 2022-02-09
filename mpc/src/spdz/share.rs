@@ -1,4 +1,4 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::{fields::MpcField, MpcShare};
 
@@ -64,5 +64,26 @@ impl<T: MpcField> Mul<T> for SpdzShare<T> {
             value: self.value * rhs,
             mac: self.mac * rhs,
         }
+    }
+}
+
+impl<T: MpcField> AddAssign for SpdzShare<T> {
+    fn add_assign(&mut self, rhs: Self) {
+        self.value += rhs.value;
+        self.mac += rhs.mac;
+    }
+}
+
+impl<T: MpcField> SubAssign for SpdzShare<T> {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.value -= rhs.value;
+        self.mac -= rhs.mac;
+    }
+}
+
+impl<T: MpcField> MulAssign<T> for SpdzShare<T> {
+    fn mul_assign(&mut self, rhs: T) {
+        self.value *= rhs;
+        self.mac *= rhs;
     }
 }

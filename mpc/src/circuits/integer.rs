@@ -1,6 +1,6 @@
 use std::{
     cmp,
-    ops::{Add, Mul, Neg, Sub},
+    ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
 use crate::{
@@ -29,6 +29,11 @@ impl<T: MpcShare, const N: usize> WrappedShare for IntShare<T, N> {
     /// Unwrapped MPC share.
     fn raw(&self) -> T {
         self.0
+    }
+
+    /// Reference to unwrapped MPC share.
+    fn raw_mut(&mut self) -> &mut T {
+        &mut self.0
     }
 }
 
@@ -271,6 +276,24 @@ impl<T: MpcShare, const N: usize> Mul<i64> for IntShare<T, N> {
     fn mul(self, rhs: i64) -> Self::Output {
         let rhs = embed_int_into_field::<_, N>(rhs);
         Self::wrap(self.0 * rhs)
+    }
+}
+
+impl<T: MpcShare, const N: usize> AddAssign for IntShare<T, N> {
+    fn add_assign(&mut self, rhs: Self) {
+        self.0 += rhs.0;
+    }
+}
+
+impl<T: MpcShare, const N: usize> SubAssign for IntShare<T, N> {
+    fn sub_assign(&mut self, rhs: Self) {
+        self.0 -= rhs.0;
+    }
+}
+
+impl<T: MpcShare, const N: usize> MulAssign<T::Field> for IntShare<T, N> {
+    fn mul_assign(&mut self, rhs: T::Field) {
+        self.0 *= rhs;
     }
 }
 

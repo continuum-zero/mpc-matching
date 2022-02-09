@@ -31,6 +31,9 @@ pub trait WrappedShare: Copy {
 
     /// Unwrapped MPC share.
     fn raw(&self) -> Self::Item;
+
+    /// Reference to unwrapped MPC share.
+    fn raw_mut(&mut self) -> &mut Self::Item;
 }
 
 impl<T: MpcShare> WrappedShare for T {
@@ -42,6 +45,10 @@ impl<T: MpcShare> WrappedShare for T {
 
     fn raw(&self) -> Self::Item {
         *self
+    }
+
+    fn raw_mut(&mut self) -> &mut Self::Item {
+        self
     }
 }
 

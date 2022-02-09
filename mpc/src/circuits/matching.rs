@@ -33,8 +33,8 @@ pub async fn min_cost_max_matching<'a, E: MpcEngine + 'a, const N: usize>(
     for i in 0..n {
         for j in 0..n {
             let flow = flow_matrix[[i + 2, n + j + 2]];
-            left_matches[i] = left_matches[i] + flow * (j as i64);
-            right_matches[j] = right_matches[i] + flow * (i as i64);
+            left_matches[i] += flow * (j as i64);
+            right_matches[j] += flow * (i as i64);
         }
     }
 

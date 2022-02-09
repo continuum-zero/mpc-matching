@@ -20,6 +20,11 @@ impl<T: MpcShare> WrappedShare for BitShare<T> {
     fn raw(&self) -> T {
         self.0
     }
+
+    /// Reference to unwrapped MPC share.
+    fn raw_mut(&mut self) -> &mut T {
+        &mut self.0
+    }
 }
 
 impl<T: MpcShare> BitShare<T> {
