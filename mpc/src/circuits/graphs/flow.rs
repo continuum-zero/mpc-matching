@@ -1,17 +1,15 @@
-// TODO: These circuits will be moved later to another crate.
-
 use std::fmt;
 
 use ndarray::{Array, Array2, ArrayViewMut2};
 
 use crate::{
-    circuits::WrappedShare, executor::MpcExecutionContext, join_circuits, MpcEngine, MpcShare,
-};
-
-use super::{
-    fold_tree, join_circuits_all,
-    sorting::{apply_swaps, apply_swaps_to_matrix, generate_sorting_swaps},
-    BitShare, IntShare,
+    circuits::{
+        fold_tree, join_circuits_all,
+        sorting::{apply_swaps, apply_swaps_to_matrix, generate_sorting_swaps},
+        BitShare, IntShare, WrappedShare,
+    },
+    executor::MpcExecutionContext,
+    join_circuits, MpcEngine, MpcShare,
 };
 
 /// Error during oblivious flow computation.

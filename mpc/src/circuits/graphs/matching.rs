@@ -1,13 +1,8 @@
-// TODO: These circuits will be moved later to another crate.
-
 use ndarray::ArrayView2;
 
-use crate::{executor::MpcExecutionContext, MpcEngine};
+use crate::{circuits::IntShare, executor::MpcExecutionContext, MpcEngine};
 
-use super::{
-    flow::{FlowError, FlowNetwork},
-    IntShare,
-};
+use super::{FlowError, FlowNetwork};
 
 /// Given a square matrix of costs, compute perfect bipartite matching with smallest total cost.
 pub async fn min_cost_bipartite_matching<'a, E: MpcEngine + 'a, const N: usize>(

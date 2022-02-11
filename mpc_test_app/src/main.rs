@@ -3,7 +3,7 @@ use std::{fmt::Debug, future::Future, pin::Pin};
 use futures::{stream::FuturesUnordered, StreamExt};
 
 use mpc::{
-    circuits::{join_circuits_all, matching, IntShare},
+    circuits::{graphs, join_circuits_all, IntShare},
     executor::{self, MpcExecutionContext},
     fields::Mersenne127,
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
@@ -61,7 +61,7 @@ pub async fn matching(num_parties: usize, num_verts: usize) {
                 }
             }
 
-            let (left, _) = matching::min_cost_bipartite_matching(ctx, costs.view())
+            let (left, _) = graphs::min_cost_bipartite_matching(ctx, costs.view())
                 .await
                 .unwrap();
 
