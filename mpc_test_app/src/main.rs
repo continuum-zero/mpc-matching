@@ -1,18 +1,17 @@
-use std::{fmt::Debug, future::Future, pin::Pin};
-
-use futures::{stream::FuturesUnordered, StreamExt};
+use std::{fmt::Debug, future::Future, net::SocketAddr, pin::Pin};
 
 use mpc::{
     circuits::{graphs, join_circuits_all, IntShare},
     executor::{self, MpcExecutionContext},
     fields::Mersenne127,
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
-    transport::{self, BincodeDuplex},
+    transport::{self, NetChannel, NetworkPartyConfig},
 };
 use ndarray::Array;
+use tokio::sync::oneshot;
 
 type Fp = Mersenne127;
-type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, BincodeDuplex<SpdzMessage<Fp>>>;
+type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, NetChannel<SpdzMessage<Fp>>>;
 
 async fn run_spdz<F, T>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> T
 where
@@ -26,20 +25,37 @@ where
         ) -> Pin<Box<dyn Future<Output = T> + '_>>,
 {
     let num_parties = inputs.len();
-    let channel_matrix = transport::mock_multiparty_channels(num_parties, 512);
-    let futures = FuturesUnordered::new();
+    let mut results = Vec::new();
 
-    for (party_id, transport) in channel_matrix.into_iter().enumerate() {
-        let dealer = FakeSpdzDealer::new(num_parties, party_id, 123);
-        let engine = MockSpdzEngine::new(dealer, transport);
-        futures.push(executor::run_circuit_in_background(
-            engine,
-            inputs[party_id].clone(),
-            circuit_fn,
-        ));
+    let configs: Vec<_> = (0..num_parties)
+        .map(|id| NetworkPartyConfig {
+            addr: SocketAddr::new("127.0.0.1".parse().unwrap(), (id + 2500) as u16),
+        })
+        .collect();
+
+    for party_id in 0..num_parties {
+        let inputs = inputs.clone();
+        let configs = configs.clone();
+        let (sender, receiver) = oneshot::channel();
+        results.push(receiver);
+
+        tokio::spawn(async move {
+            let channels = transport::connect_multiparty(&configs, party_id)
+                .await
+                .unwrap();
+            let dealer = FakeSpdzDealer::new(num_parties, party_id, 123);
+            let engine = MockSpdzEngine::new(dealer, channels);
+            let result =
+                executor::run_circuit_in_background(engine, inputs[party_id].clone(), circuit_fn)
+                    .await
+                    .unwrap();
+            let _ = sender.send(result);
+        });
     }
 
-    let outputs: Vec<_> = futures.map(|result| result.unwrap()).collect().await;
+    let outputs: Vec<_> = futures::future::try_join_all(results.into_iter())
+        .await
+        .unwrap();
     for i in 1..num_parties {
         assert_eq!(outputs[i], outputs[0], "Mismatched outputs",);
     }
@@ -57,7 +73,7 @@ pub async fn matching(num_parties: usize, num_verts: usize) {
             for i in 0..num_verts {
                 for j in 0..num_verts {
                     let c = if i == (j + 1) % num_verts { 1 } else { 2 };
-                    costs[[i, j]] = IntShare::<_, 64>::plain(ctx, c);
+                    costs[[i, j]] = IntShare::<_, 64>::from_plain(ctx, c);
                 }
             }
 
@@ -75,5 +91,5 @@ pub async fn matching(num_parties: usize, num_verts: usize) {
 
 #[tokio::main]
 async fn main() {
-    matching(20, 10).await;
+    matching(14, 7).await;
 }
