@@ -7,9 +7,8 @@ use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    fields::MpcField,
     transport::{MultipartyTransport, TransportError},
-    MpcContext, MpcEngine,
+    MpcContext, MpcEngine, MpcField,
 };
 
 use super::{SpdzDealer, SpdzDigest, SpdzDigestOutput, SpdzRng, SpdzShare};

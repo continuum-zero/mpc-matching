@@ -1,8 +1,7 @@
 use rand::rngs::SmallRng;
 use rand::{Rng, SeedableRng};
 
-use crate::fields::MpcField;
-use crate::{MpcContext, MpcDealer};
+use crate::{MpcContext, MpcDealer, MpcField};
 
 use super::{SpdzDealer, SpdzShare};
 

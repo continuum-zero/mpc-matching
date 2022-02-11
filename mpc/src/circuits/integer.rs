@@ -3,7 +3,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::{executor::MpcExecutionContext, fields::MpcField, MpcDealer, MpcEngine, MpcShare};
+use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcField, MpcShare};
 
 use super::{bitwise_compare, bitwise_equal, BitShare, WrappedShare};
 

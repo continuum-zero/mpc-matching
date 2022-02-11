@@ -5,9 +5,10 @@ use futures::{stream::FuturesUnordered, StreamExt};
 use mpc::{
     circuits::{self, join_circuits_all, matching, mul, IntShare, WrappedShare},
     executor::{self, MpcExecutionContext},
-    fields::{Mersenne127, MpcField},
+    fields::Mersenne127,
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
     transport::{self, BincodeDuplex},
+    MpcField,
 };
 use ndarray::Array;
 

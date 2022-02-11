@@ -1,18 +1,3 @@
-/// Prime field that can be used in MPC computation.
-pub trait MpcField: ff::PrimeField {
-    /// Largest k such that 2^(k+1)-2 doesn't overflow.
-    const SAFE_BITS: usize;
-
-    /// Returns preprocessed integer 2^k embedded in field. Panics if k > SAFE_BITS.
-    fn power_of_two(k: usize) -> Self;
-
-    /// Returns preprocessed inverse of 2^k. Panics if k > SAFE_BITS.
-    fn power_of_two_inverse(k: usize) -> Self;
-
-    /// Convert to u64 by truncating remaining bits.
-    fn truncated(&self) -> u64;
-}
-
 /// Precomputed powers of two and their inverses.
 struct PowersOfTwo<T, const N: usize> {
     pub powers: [T; N],
@@ -36,7 +21,9 @@ mod mersenne_61 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{MpcField, PowersOfTwo};
+    use crate::MpcField;
+
+    use super::PowersOfTwo;
 
     /// Finite field mod 2^61-1.
     #[derive(PrimeField)]
@@ -84,7 +71,7 @@ mod mersenne_61 {
 
     #[cfg(test)]
     mod tests {
-        use crate::fields::MpcField;
+        use crate::MpcField;
 
         use super::Mersenne61;
 
@@ -110,7 +97,9 @@ mod mersenne_127 {
     use ff::PrimeField;
     use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-    use super::{MpcField, PowersOfTwo};
+    use crate::MpcField;
+
+    use super::PowersOfTwo;
 
     /// Finite field mod 2^127-1.
     #[derive(PrimeField)]
@@ -161,7 +150,7 @@ mod mersenne_127 {
     mod tests {
         use ff::PrimeField;
 
-        use crate::fields::MpcField;
+        use crate::MpcField;
 
         use super::Mersenne127;
 

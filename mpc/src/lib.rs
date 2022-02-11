@@ -9,7 +9,21 @@ use std::fmt::Debug;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use async_trait::async_trait;
-use fields::MpcField;
+
+/// Prime field that can be used in MPC computation.
+pub trait MpcField: ff::PrimeField {
+    /// Largest k such that 2^(k+1)-2 doesn't overflow.
+    const SAFE_BITS: usize;
+
+    /// Returns preprocessed integer 2^k embedded in field. Panics if k > SAFE_BITS.
+    fn power_of_two(k: usize) -> Self;
+
+    /// Returns preprocessed inverse of 2^k. Panics if k > SAFE_BITS.
+    fn power_of_two_inverse(k: usize) -> Self;
+
+    /// Convert to u64 by truncating remaining bits.
+    fn truncated(&self) -> u64;
+}
 
 /// Private share of a field element.
 /// Sharing is addtive and supports multiplication by scalars without communication.

@@ -1,6 +1,6 @@
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use crate::{fields::MpcField, MpcShare};
+use crate::{MpcField, MpcShare};
 
 /// Value share in SPDZ protocol.
 #[derive(Copy, Clone, Debug)]
