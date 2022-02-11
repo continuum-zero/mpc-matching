@@ -29,7 +29,7 @@ impl<T: MpcShare> WrappedShare for BitShare<T> {
 
 impl<T: MpcShare> BitShare<T> {
     /// Wrap plaintext boolean value.
-    pub fn plain<E>(ctx: &MpcExecutionContext<E>, value: bool) -> Self
+    pub fn from_plain<E>(ctx: &MpcExecutionContext<E>, value: bool) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -138,8 +138,8 @@ mod tests {
     async fn test_plain() {
         test_circuit(|ctx| {
             Box::pin(async {
-                assert_eq!(BitShare::plain(ctx, false).raw().0, ff::Field::zero());
-                assert_eq!(BitShare::plain(ctx, true).raw().0, ff::Field::one());
+                assert_eq!(BitShare::from_plain(ctx, false).raw().0, ff::Field::zero());
+                assert_eq!(BitShare::from_plain(ctx, true).raw().0, ff::Field::one());
             })
         })
         .await;

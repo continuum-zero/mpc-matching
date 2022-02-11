@@ -35,7 +35,7 @@ impl<T: MpcShare, const N: usize> WrappedShare for IntShare<T, N> {
 
 impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Wrap plain value. Input must be an N-bit signed integer.
-    pub fn plain<E>(ctx: &MpcExecutionContext<E>, value: i64) -> Self
+    pub fn from_plain<E>(ctx: &MpcExecutionContext<E>, value: i64) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -341,7 +341,7 @@ mod tests {
     async fn test_plain_positive() {
         test_circuit(|ctx| {
             Box::pin(async {
-                let share: IntShare<_, 16> = IntShare::plain(ctx, 420);
+                let share: IntShare<_, 16> = IntShare::from_plain(ctx, 420);
                 assert_eq!(share.raw().0, MockField::from(420));
             })
         })
@@ -352,7 +352,7 @@ mod tests {
     async fn test_plain_negative() {
         test_circuit(|ctx| {
             Box::pin(async {
-                let share: IntShare<_, 16> = IntShare::plain(ctx, -1337);
+                let share: IntShare<_, 16> = IntShare::from_plain(ctx, -1337);
                 assert_eq!(share.raw().0, -MockField::from(1337));
             })
         })
@@ -401,7 +401,7 @@ mod tests {
                 let cases = [0, 1, -1, 123, -123, 17, -17];
                 for power in 0..8 {
                     for value in cases {
-                        let share: IntShare<_, 8> = IntShare::plain(ctx, value);
+                        let share: IntShare<_, 8> = IntShare::from_plain(ctx, value);
                         let reduced = share.mod_power_of_two(ctx, power).await;
                         let reduced = reduced.open_unchecked(ctx).await;
                         let expected = value.rem_euclid(1 << power);
@@ -420,7 +420,7 @@ mod tests {
                 let cases = [0, 1, -1, 123, -123, 17, -17];
                 for power in 0..10 {
                     for value in cases {
-                        let share: IntShare<_, 8> = IntShare::plain(ctx, value);
+                        let share: IntShare<_, 8> = IntShare::from_plain(ctx, value);
                         let reduced = share.div_power_of_two(ctx, power).await;
                         let reduced = reduced.open_unchecked(ctx).await;
                         let expected = value >> power;
@@ -438,7 +438,7 @@ mod tests {
             Box::pin(async {
                 let cases = [0, 1, -1, 123, -123, 17, -17];
                 for value in cases {
-                    let share: IntShare<_, 8> = IntShare::plain(ctx, value);
+                    let share: IntShare<_, 8> = IntShare::from_plain(ctx, value);
                     let bit = share.less_than_zero(ctx).await;
                     assert_eq!(bit.open_unchecked(ctx).await, value < 0);
                 }
@@ -453,7 +453,7 @@ mod tests {
             Box::pin(async {
                 let cases = [0, 1, -1, 100, -100];
                 for value in cases {
-                    let share: IntShare<_, 8> = IntShare::plain(ctx, value);
+                    let share: IntShare<_, 8> = IntShare::from_plain(ctx, value);
                     let bit = share.equal_zero(ctx).await;
                     assert_eq!(bit.open_unchecked(ctx).await, value == 0);
                 }

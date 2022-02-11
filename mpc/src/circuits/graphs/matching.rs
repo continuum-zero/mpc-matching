@@ -65,7 +65,7 @@ mod tests {
                     [5, 1, 5, 5, 5],
                 ];
 
-                let cost_matrix = cost_matrix.map(|&x| IntShare::<_, 16>::plain(ctx, x));
+                let cost_matrix = cost_matrix.map(|&x| IntShare::<_, 16>::from_plain(ctx, x));
                 let (left_matches, right_matches) =
                     min_cost_bipartite_matching(ctx, cost_matrix.view())
                         .await

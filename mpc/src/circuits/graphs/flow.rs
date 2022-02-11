@@ -136,7 +136,9 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
 
         Self {
             ctx,
-            permutation: (0..n).map(|x| IntShare::plain(ctx, x as i64)).collect(),
+            permutation: (0..n)
+                .map(|x| IntShare::from_plain(ctx, x as i64))
+                .collect(),
             cost: net.cost,
             residual: net.adjacency.to_owned(),
             adjacency: net.adjacency,
@@ -232,7 +234,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
     /// Try to improve distances of neighbours of given vertex (i.e. step of Dijkstra algorithm).
     async fn relax_distances(&mut self, current: usize) {
         let ctx = self.ctx;
-        let current_as_share = IntShare::plain(ctx, current as i64);
+        let current_as_share = IntShare::from_plain(ctx, current as i64);
         let cur_dist = self.vertices[current].distance;
         let cost_row = self.cost.row_mut(current);
         let residual_row = self.residual.row_mut(current);
@@ -274,7 +276,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
             .filter(|(id, vertex)| *id >= 2 && !vertex.processed)
             .map(|(id, vertex)| {
                 (
-                    IntShare::<_, N>::plain(self.ctx, id as i64),
+                    IntShare::<_, N>::from_plain(self.ctx, id as i64),
                     vertex.distance,
                     vertex.weight,
                 )
@@ -334,7 +336,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
                 .select(
                     ctx,
                     self.vertices[current].prev_on_path,
-                    IntShare::plain(ctx, -1),
+                    IntShare::from_plain(ctx, -1),
                 )
                 .await;
 
@@ -342,7 +344,7 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
             let prev_indicators =
                 join_circuits_all(processing_order[0..i].iter().map(|&id| async move {
                     let is_prev = prev_on_path
-                        .equal(ctx, IntShare::plain(ctx, id as i64))
+                        .equal(ctx, IntShare::from_plain(ctx, id as i64))
                         .await;
                     (id, is_prev)
                 }))
@@ -421,8 +423,8 @@ mod tests {
 
         fn shared(&self, ctx: &MpcExecutionContext<MockEngine>) -> FlowNetwork<MockShare, 32> {
             FlowNetwork {
-                adjacency: self.adjacency.map(|&x| BitShare::plain(ctx, x)),
-                cost: self.cost.map(|&x| IntShare::plain(ctx, x)),
+                adjacency: self.adjacency.map(|&x| BitShare::from_plain(ctx, x)),
+                cost: self.cost.map(|&x| IntShare::from_plain(ctx, x)),
             }
         }
 

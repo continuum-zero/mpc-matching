@@ -147,7 +147,7 @@ mod tests {
         test_circuit(|ctx| {
             Box::pin(async {
                 let mut elems =
-                    [2, 1, 9, 3, 4, 7, 6, 8, 5].map(|x| IntShare::<_, 8>::plain(ctx, x));
+                    [2, 1, 9, 3, 4, 7, 6, 8, 5].map(|x| IntShare::<_, 8>::from_plain(ctx, x));
                 sort(ctx, &mut elems).await;
                 let elems = join_circuits_all(elems.map(|x| x.open_unchecked(ctx))).await;
                 assert_eq!(elems, vec![1, 2, 3, 4, 5, 6, 7, 8, 9]);
@@ -160,9 +160,10 @@ mod tests {
     async fn test_generate_sorting_swaps() {
         test_circuit(|ctx| {
             Box::pin(async {
-                let weights = [2, 1, 9, 3, 4, 7, 6, 8, 5].map(|x| IntShare::<_, 8>::plain(ctx, x));
+                let weights =
+                    [2, 1, 9, 3, 4, 7, 6, 8, 5].map(|x| IntShare::<_, 8>::from_plain(ctx, x));
                 let mut elems =
-                    [1, 2, 3, 4, 5, 6, 7, 8, 9].map(|x| IntShare::<_, 8>::plain(ctx, x));
+                    [1, 2, 3, 4, 5, 6, 7, 8, 9].map(|x| IntShare::<_, 8>::from_plain(ctx, x));
 
                 let swaps = generate_sorting_swaps(ctx, &weights).await;
                 apply_swaps(ctx, &mut elems, &swaps).await;
@@ -178,10 +179,10 @@ mod tests {
     async fn test_apply_swaps_to_matrix() {
         test_circuit(|ctx| {
             Box::pin(async {
-                let weights = [3, 1, 2].map(|x| IntShare::<_, 8>::plain(ctx, x));
+                let weights = [3, 1, 2].map(|x| IntShare::<_, 8>::from_plain(ctx, x));
 
                 let mut matrix = ndarray::array![[1, 2, 3], [4, 5, 6], [7, 8, 9]]
-                    .map(|&x| IntShare::<_, 8>::plain(ctx, x));
+                    .map(|&x| IntShare::<_, 8>::from_plain(ctx, x));
 
                 let swaps = generate_sorting_swaps(ctx, &weights).await;
                 apply_swaps_to_matrix(ctx, matrix.view_mut(), &swaps, 0).await;

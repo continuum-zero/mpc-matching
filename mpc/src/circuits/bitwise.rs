@@ -78,7 +78,7 @@ mod tests {
 
                 for (lhs, rhs) in cases {
                     let rhs_bits: Vec<_> = (0..8)
-                        .map(|i| BitShare::plain(ctx, ((rhs >> i) & 1) == 1))
+                        .map(|i| BitShare::from_plain(ctx, ((rhs >> i) & 1) == 1))
                         .collect();
 
                     let (is_less, is_greater) = bitwise_compare(ctx, lhs, &rhs_bits).await;
@@ -101,7 +101,7 @@ mod tests {
 
                 for (lhs, rhs) in cases {
                     let rhs_bits: Vec<_> = (0..8)
-                        .map(|i| BitShare::plain(ctx, ((rhs >> i) & 1) == 1))
+                        .map(|i| BitShare::from_plain(ctx, ((rhs >> i) & 1) == 1))
                         .collect();
 
                     let is_eq = bitwise_equal(ctx, lhs, &rhs_bits).await;
