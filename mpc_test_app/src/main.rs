@@ -43,7 +43,10 @@ where
     for i in 1..num_parties {
         assert_eq!(outputs[i], outputs[0], "Mismatched outputs",);
     }
-    outputs.into_iter().next().unwrap()
+
+    let (result, stats) = outputs.into_iter().next().unwrap();
+    dbg!(stats);
+    result
 }
 
 pub async fn matching(num_parties: usize, num_verts: usize) {

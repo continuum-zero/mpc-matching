@@ -386,7 +386,7 @@ mod tests {
         for i in 1..num_parties {
             assert_eq!(outputs[i], outputs[0], "Mismatched outputs",);
         }
-        outputs.into_iter().next().unwrap()
+        outputs.into_iter().next().unwrap().0
     }
 
     #[tokio::test]

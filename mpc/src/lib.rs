@@ -5,7 +5,6 @@ pub mod plaintext;
 pub mod spdz;
 pub mod transport;
 
-use std::fmt::Debug;
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use async_trait::async_trait;
@@ -30,9 +29,6 @@ pub trait MpcField: ff::PrimeField {
 pub trait MpcShare:
     Copy
     + Clone
-    + Send
-    + Sync
-    + Debug
     + Add<Output = Self>
     + Sub<Output = Self>
     + Neg<Output = Self>

@@ -1,5 +1,4 @@
 use std::{
-    cell::Cell,
     marker::PhantomData,
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
@@ -12,8 +11,6 @@ use crate::{MpcContext, MpcDealer, MpcEngine, MpcField, MpcShare};
 /// Fake MPC engine that computes result in plain on a single node.
 pub struct PlainMpcEngine<T> {
     _phantom: PhantomData<T>,
-    num_openings: Cell<usize>,
-    num_rounds: Cell<usize>,
     rng: SmallRng,
 }
 
@@ -22,20 +19,8 @@ impl<T> PlainMpcEngine<T> {
     pub fn new() -> Self {
         Self {
             _phantom: PhantomData,
-            num_openings: Cell::new(0),
-            num_rounds: Cell::new(0),
             rng: SmallRng::from_entropy(),
         }
-    }
-
-    /// Get total count of open requests.
-    pub fn num_openings(&self) -> usize {
-        self.num_openings.get()
-    }
-
-    /// Get total number of rounds.
-    pub fn num_rounds(&self) -> usize {
-        self.num_rounds.get()
     }
 }
 
@@ -78,9 +63,6 @@ impl<T: MpcField> MpcEngine for PlainMpcEngine<T> {
         &mut self,
         requests: Vec<Self::Share>,
     ) -> Result<Vec<Self::Field>, ()> {
-        self.num_openings
-            .set(self.num_openings.get() + requests.len());
-        self.num_rounds.set(self.num_rounds.get() + 1);
         Ok(requests.iter().map(|r| r.0).collect())
     }
 

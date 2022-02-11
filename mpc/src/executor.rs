@@ -11,6 +11,14 @@ use tokio::sync::oneshot;
 
 use crate::{MpcContext, MpcDealer, MpcEngine, MpcShare};
 
+/// Statistics collected during MPC execution.
+#[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
+pub struct MpcExecutionStats {
+    pub num_openings: usize,
+    pub num_rounds: usize,
+    pub num_integrity_checks: usize,
+}
+
 /// MPC async circuit execution context.
 pub struct MpcExecutionContext<Engine: MpcEngine> {
     engine: RefCell<Engine>,
@@ -84,7 +92,7 @@ pub async fn run_circuit<Engine, F, T>(
     mut engine: Engine,
     inputs: &[Engine::Field],
     circuit_fn: F,
-) -> Result<T, Engine::Error>
+) -> Result<(T, MpcExecutionStats), Engine::Error>
 where
     Engine: MpcEngine,
     F: FnOnce(
@@ -98,14 +106,17 @@ where
 
     let ctx = MpcExecutionContext::new(engine);
     let mut future = circuit_fn(&ctx, input_shares);
+    let mut stats = MpcExecutionStats::default();
 
     loop {
         if let Poll::Ready(outputs) = futures::poll!(future.as_mut()) {
+            stats.num_integrity_checks += 1;
             ctx.engine().check_integrity().await?;
-            return Ok(outputs);
+            return Ok((outputs, stats));
         }
 
         if ctx.force_integrity_check.get() {
+            stats.num_integrity_checks += 1;
             ctx.engine().check_integrity().await?;
             ctx.force_integrity_check.set(false);
         }
@@ -114,6 +125,9 @@ where
         if requests.is_empty() {
             panic!("Circuit didn't make progress");
         }
+
+        stats.num_openings += requests.len();
+        stats.num_rounds += 1;
 
         let responses = ctx.engine().process_openings_unchecked(requests).await?;
         ctx.open_buffer.resolve_all(responses);
@@ -125,7 +139,7 @@ pub async fn run_circuit_in_background<Engine, Error, F, T>(
     engine: Engine,
     inputs: Vec<Engine::Field>,
     circuit_fn: F,
-) -> Result<T, Engine::Error>
+) -> Result<(T, MpcExecutionStats), Engine::Error>
 where
     Engine: 'static + Send + MpcEngine<Error = Error>,
     Error: 'static + Send,
