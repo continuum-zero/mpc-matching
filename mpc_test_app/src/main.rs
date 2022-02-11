@@ -1,29 +1,29 @@
-use std::{future::Future, pin::Pin};
+use std::{fmt::Debug, future::Future, pin::Pin};
 
 use futures::{stream::FuturesUnordered, StreamExt};
 
 use mpc::{
-    circuits::{self, join_circuits_all, matching, mul, IntShare, WrappedShare},
+    circuits::{join_circuits_all, matching, IntShare},
     executor::{self, MpcExecutionContext},
     fields::Mersenne127,
     spdz::{FakeSpdzDealer, SpdzEngine, SpdzMessage, SpdzShare},
     transport::{self, BincodeDuplex},
-    MpcField,
 };
 use ndarray::Array;
 
 type Fp = Mersenne127;
 type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, BincodeDuplex<SpdzMessage<Fp>>>;
 
-async fn run_spdz<F>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> Vec<Fp>
+async fn run_spdz<F, T>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> T
 where
+    T: 'static + PartialEq + Eq + Debug + Send,
     F: 'static
         + Send
         + Copy
         + Fn(
             &'_ MpcExecutionContext<MockSpdzEngine>,
             Vec<Vec<SpdzShare<Fp>>>,
-        ) -> Pin<Box<dyn Future<Output = Vec<SpdzShare<Fp>>> + '_>>,
+        ) -> Pin<Box<dyn Future<Output = T> + '_>>,
 {
     let num_parties = inputs.len();
     let channel_matrix = transport::mock_multiparty_channels(num_parties, 512);
@@ -46,56 +46,6 @@ where
     outputs.into_iter().next().unwrap()
 }
 
-pub async fn multiply_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
-    run_spdz(vec![Vec::new(); num_parties as usize], move |ctx, _| {
-        Box::pin(async move {
-            let mut elems: Vec<_> = (0..width).map(|x| ctx.plain(Fp::from(x))).collect();
-            for _ in 0..num_rounds {
-                elems = join_circuits_all(elems.into_iter().map(|x| mul(ctx, x, x))).await;
-            }
-            elems
-        })
-    })
-    .await;
-}
-
-pub async fn mod2k_in_loop(num_parties: u64, num_rounds: u64, width: u64) {
-    run_spdz(vec![Vec::new(); num_parties as usize], move |ctx, _| {
-        Box::pin(async move {
-            let mut elems: Vec<IntShare<_, 64>> =
-                (0..width).map(|x| IntShare::plain(ctx, x as i64)).collect();
-            for _ in 0..num_rounds {
-                elems =
-                    join_circuits_all(elems.into_iter().map(|x| x.mod_power_of_two(ctx, 60))).await;
-            }
-            elems.into_iter().map(|x| x.raw()).collect()
-        })
-    })
-    .await;
-}
-
-pub async fn sort_seq(num_parties: u64, length: u64) {
-    let sorted = run_spdz(vec![Vec::new(); num_parties as usize], move |ctx, _| {
-        Box::pin(async move {
-            let weights: Vec<IntShare<_, 64>> = (0..length)
-                .map(|x| IntShare::plain(ctx, (length - x) as i64))
-                .collect();
-
-            let mut elems: Vec<IntShare<_, 64>> = (0..length)
-                .map(|x| IntShare::plain(ctx, x as i64))
-                .collect();
-
-            let swaps = circuits::sorting::generate_sorting_swaps(ctx, &weights).await;
-            circuits::sorting::apply_swaps(ctx, &mut elems, &swaps).await;
-
-            elems.into_iter().map(|x| x.raw()).collect()
-        })
-    })
-    .await;
-    let sorted: Vec<_> = sorted.into_iter().map(|x| x.truncated()).collect();
-    dbg!(sorted);
-}
-
 pub async fn matching(num_parties: usize, num_verts: usize) {
     let left_matches = run_spdz(vec![Vec::new(); num_parties], move |ctx, _| {
         Box::pin(async move {
@@ -111,11 +61,12 @@ pub async fn matching(num_parties: usize, num_verts: usize) {
             let (left, _) = matching::min_cost_bipartite_matching(ctx, costs.view())
                 .await
                 .unwrap();
-            left.into_iter().map(|x| x.raw()).collect()
+
+            ctx.ensure_integrity();
+            join_circuits_all(left.into_iter().map(|x| x.open_unchecked(ctx))).await
         })
     })
     .await;
-    let left_matches: Vec<_> = left_matches.into_iter().map(|x| x.truncated()).collect();
     dbg!(left_matches);
 }
 

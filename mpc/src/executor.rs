@@ -9,7 +9,7 @@ use std::{
 
 use tokio::sync::oneshot;
 
-use crate::*;
+use crate::{MpcContext, MpcDealer, MpcEngine, MpcShare};
 
 /// MPC async circuit execution context.
 pub struct MpcExecutionContext<Engine: MpcEngine> {
@@ -22,7 +22,7 @@ pub struct MpcExecutionContext<Engine: MpcEngine> {
 
 impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     /// Create new MPC circuit executor.
-    pub fn new(mut engine: Engine) -> Self {
+    fn new(mut engine: Engine) -> Self {
         let one = engine.dealer().share_plain(ff::Field::one());
         MpcExecutionContext {
             engine: RefCell::new(engine),
@@ -80,17 +80,17 @@ impl<Engine: MpcEngine> MpcContext for MpcExecutionContext<Engine> {
 }
 
 /// Execute async circuit.
-pub async fn run_circuit<Engine, F>(
+pub async fn run_circuit<Engine, F, T>(
     mut engine: Engine,
     inputs: &[Engine::Field],
     circuit_fn: F,
-) -> Result<Vec<Engine::Field>, Engine::Error>
+) -> Result<T, Engine::Error>
 where
     Engine: MpcEngine,
     F: FnOnce(
         &'_ MpcExecutionContext<Engine>,
         Vec<Vec<Engine::Share>>,
-    ) -> Pin<Box<dyn Future<Output = Vec<Engine::Share>> + '_>>,
+    ) -> Pin<Box<dyn Future<Output = T> + '_>>,
 {
     let input_shares = engine
         .process_inputs(inputs.iter().copied().collect())
@@ -100,12 +100,7 @@ where
     let mut future = circuit_fn(&ctx, input_shares);
 
     loop {
-        if let Poll::Ready(shares_to_open) = futures::poll!(future.as_mut()) {
-            ctx.engine().check_integrity().await?;
-            let outputs = ctx
-                .engine()
-                .process_openings_unchecked(shares_to_open)
-                .await?;
+        if let Poll::Ready(outputs) = futures::poll!(future.as_mut()) {
             ctx.engine().check_integrity().await?;
             return Ok(outputs);
         }
@@ -126,27 +121,27 @@ where
 }
 
 /// Execute async circuit on a dedicated thread.
-pub async fn run_circuit_in_background<Engine, Error, F>(
+pub async fn run_circuit_in_background<Engine, Error, F, T>(
     engine: Engine,
     inputs: Vec<Engine::Field>,
     circuit_fn: F,
-) -> Result<Vec<Engine::Field>, Engine::Error>
+) -> Result<T, Engine::Error>
 where
     Engine: 'static + Send + MpcEngine<Error = Error>,
     Error: 'static + Send,
+    T: 'static + Send,
     F: 'static
         + Send
         + FnOnce(
             &'_ MpcExecutionContext<Engine>,
             Vec<Vec<Engine::Share>>,
-        ) -> Pin<Box<dyn Future<Output = Vec<Engine::Share>> + '_>>,
+        ) -> Pin<Box<dyn Future<Output = T> + '_>>,
 {
     let (sender, receiver) = oneshot::channel();
     thread::spawn(move || {
         let runtime = tokio::runtime::Builder::new_current_thread()
             .build()
             .unwrap();
-
         let future = run_circuit(engine, &inputs, circuit_fn);
         let result = runtime.block_on(future);
         let _ = sender.send(result);

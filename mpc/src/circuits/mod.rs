@@ -108,7 +108,6 @@ fn iter_pin_mut<T>(slice: Pin<&mut [T]>) -> impl Iterator<Item = Pin<&mut T>> {
 }
 
 pub mod testing {
-    use futures::FutureExt;
     use std::future::Future;
     use std::pin::Pin;
 
@@ -129,11 +128,8 @@ pub mod testing {
     where
         F: FnOnce(&'_ MockExecutionContext) -> Pin<Box<dyn Future<Output = ()> + '_>>,
     {
-        crate::executor::run_circuit(MockEngine::new(), &[], |ctx, _| {
-            let future = circuit_fn(ctx);
-            Box::pin(future.map(|_| vec![]))
-        })
-        .await
-        .unwrap();
+        crate::executor::run_circuit(MockEngine::new(), &[], |ctx, _| circuit_fn(ctx))
+            .await
+            .unwrap();
     }
 }

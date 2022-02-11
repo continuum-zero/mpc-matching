@@ -346,6 +346,7 @@ fn polynomial_eval<T: ff::Field>(coeffs: impl IntoIterator<Item = T>, x: T) -> T
 
 #[cfg(test)]
 mod tests {
+    use std::fmt::Debug;
     use std::pin::Pin;
 
     use futures::{stream::FuturesUnordered, Future, StreamExt};
@@ -362,13 +363,14 @@ mod tests {
     type Fp = crate::fields::Mersenne127;
     type MockSpdzEngine = SpdzEngine<Fp, FakeSpdzDealer<Fp>, BincodeDuplex<SpdzMessage<Fp>>>;
 
-    async fn run_spdz<F>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> Vec<Fp>
+    async fn run_spdz<F, T>(inputs: Vec<Vec<Fp>>, circuit_fn: F) -> T
     where
+        T: PartialEq + Eq + Debug,
         F: Copy
             + Fn(
                 &'_ MpcExecutionContext<MockSpdzEngine>,
                 Vec<Vec<SpdzShare<Fp>>>,
-            ) -> Pin<Box<dyn Future<Output = Vec<SpdzShare<Fp>>> + '_>>,
+            ) -> Pin<Box<dyn Future<Output = T> + '_>>,
     {
         let num_parties = inputs.len();
         let channel_matrix = transport::mock_multiparty_channels(num_parties, 512);
@@ -400,7 +402,12 @@ mod tests {
                     let num_elems = inputs[0].len();
                     join_circuits_all(
                         (0..num_elems)
-                            .map(|i| circuits::product(ctx, inputs.iter().map(move |x| x[i]))),
+                            .map(|i| circuits::product(ctx, inputs.iter().map(move |x| x[i])))
+                            .map(|share_future| async move {
+                                let share = share_future.await;
+                                ctx.ensure_integrity();
+                                ctx.open_unchecked(share).await
+                            }),
                     )
                     .await
                 })
