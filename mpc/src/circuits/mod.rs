@@ -32,7 +32,7 @@ pub trait WrappedShare: Copy {
     /// Unwrapped MPC share.
     fn raw(&self) -> Self::Item;
 
-    /// Reference to unwrapped MPC share.
+    /// Mutable reference to raw MPC share.
     fn raw_mut(&mut self) -> &mut Self::Item;
 }
 

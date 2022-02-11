@@ -2,7 +2,7 @@ use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use crate::{MpcField, MpcShare};
 
-/// Value share in SPDZ protocol.
+/// Private share of a field element in SPDZ protocol.
 #[derive(Copy, Clone, Debug)]
 pub struct SpdzShare<T> {
     pub(super) value: T,
@@ -24,6 +24,12 @@ impl<T: MpcField> MpcShare for SpdzShare<T> {
             value: self.value.double(),
             mac: self.mac.double(),
         }
+    }
+}
+
+impl<T: MpcField> Default for SpdzShare<T> {
+    fn default() -> Self {
+        Self::zero()
     }
 }
 

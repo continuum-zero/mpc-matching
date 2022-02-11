@@ -11,16 +11,25 @@ use crate::{
     MpcContext, MpcEngine, MpcField,
 };
 
-use super::{SpdzDealer, SpdzDigest, SpdzDigestOutput, SpdzRng, SpdzShare};
+use super::{SpdzDealer, SpdzShare};
+
+/// Random number generator used by SPDZ implementation.
+type SpdzRng = rand::rngs::StdRng;
+
+/// Hashing function used by SPDZ implementation.
+type SpdzDigest = sha3::Sha3_256;
+
+/// Output of hashing function used by SPDZ implementation.
+type SpdzDigestOutput = [u8; 32];
+
+/// Salt for commitments.
+type CommitmentSalt = [u8; 32];
 
 /// Threshold of collected partial openings that triggers integrity checking.
 const BATCH_CHECK_THRESHOLD: usize = 20000;
 
 /// Maximum number of values that can be checked using a single polynomial hash.
 const MAX_BATCH_CHECK_SIZE: usize = 40000;
-
-/// Salt for commitments.
-type CommitmentSalt = [u8; 32];
 
 /// SPDZ protocol message.
 #[derive(Clone, Serialize, Deserialize, Debug, PartialEq, Eq)]

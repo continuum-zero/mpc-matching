@@ -188,7 +188,7 @@ impl<T, S> RoundCommandBuffer<T, S> {
                 Poll::Ready(
                     self.responses.borrow_mut()[index]
                         .take()
-                        .expect("Future polled twice"),
+                        .expect("Future polled after completion"),
                 )
             } else {
                 if self.round_index.get() != pending_round {
