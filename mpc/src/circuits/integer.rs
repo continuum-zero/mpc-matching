@@ -95,7 +95,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         Self::wrap(self.0.double())
     }
 
-    /// Remainder of N-bit integer modulo 2^k for k <= N. Result is given in range [0;2^k).
+    /// Remainder modulo 2^k for k <= N. Result is given in range [0;2^k).
     /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
     pub async fn mod_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
