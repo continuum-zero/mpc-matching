@@ -9,7 +9,7 @@ use std::{
 
 use tokio::sync::oneshot;
 
-use crate::{MpcContext, MpcDealer, MpcEngine, MpcShare};
+use crate::{MpcDealer, MpcEngine, MpcShare};
 
 /// Statistics collected during MPC execution.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -71,19 +71,6 @@ impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
     /// Sharing of plaintext element.
     pub fn plain(&self, value: Engine::Field) -> Engine::Share {
         self.cached_one * value
-    }
-}
-
-impl<Engine: MpcEngine> MpcContext for MpcExecutionContext<Engine> {
-    type Field = Engine::Field;
-    type Share = Engine::Share;
-
-    fn num_parties(&self) -> usize {
-        self.engine().num_parties()
-    }
-
-    fn party_id(&self) -> usize {
-        self.engine().party_id()
     }
 }
 

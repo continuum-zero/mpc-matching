@@ -8,7 +8,7 @@ use rand::{prelude::SmallRng, Rng, SeedableRng};
 
 use crate::{MpcContext, MpcDealer, MpcEngine, MpcField, MpcShare};
 
-/// Fake MPC engine that computes result in plain on a single node.
+/// Mock MPC engine that computes result in plain on a single node.
 pub struct PlainMpcEngine<T> {
     _phantom: PhantomData<T>,
     rng: SmallRng,
@@ -56,7 +56,7 @@ impl<T: MpcField> MpcEngine for PlainMpcEngine<T> {
         &mut self,
         inputs: Vec<Self::Field>,
     ) -> Result<Vec<Vec<Self::Share>>, ()> {
-        Ok(vec![inputs.iter().map(|&x| PlainShare(x)).collect()])
+        Ok(vec![inputs.iter().copied().map(PlainShare).collect()])
     }
 
     async fn process_openings_unchecked(
