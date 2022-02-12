@@ -1,5 +1,5 @@
 use mpc::{
-    circuits::{graphs, join_circuits_all, IntShare},
+    circuits::{join_circuits_all, IntShare},
     executor::{self, MpcExecutionContext, MpcExecutionStats},
     fields::Mersenne127,
     spdz::{PrecomputedSpdzDealer, SpdzEngine},
@@ -21,7 +21,7 @@ pub async fn test_circuit<E: MpcEngine>(ctx: &MpcExecutionContext<E>) -> Vec<i64
         }
     }
 
-    let (left, _) = graphs::min_cost_bipartite_matching(ctx, costs.view())
+    let (left, _) = mpc_flow::min_cost_bipartite_matching(ctx, costs.view())
         .await
         .unwrap();
 

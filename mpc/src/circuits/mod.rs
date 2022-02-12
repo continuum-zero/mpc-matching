@@ -13,7 +13,6 @@ pub use integer::*;
 mod sequences;
 pub use sequences::*;
 
-pub mod graphs;
 pub mod sorting;
 
 use crate::MpcShare;

@@ -1,5 +1,5 @@
 mod flow;
-mod matching;
-
 pub use flow::*;
+
+mod matching;
 pub use matching::*;

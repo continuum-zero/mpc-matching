@@ -2,6 +2,7 @@
 
 members = [
     "mpc",
+    "mpc_flow",
     "dealer",
     "mpc_test_app",
 ]

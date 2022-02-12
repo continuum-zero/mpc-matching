@@ -1,6 +1,5 @@
 use ndarray::ArrayView2;
-
-use crate::{circuits::IntShare, executor::MpcExecutionContext, MpcEngine};
+use mpc::{circuits::IntShare, executor::MpcExecutionContext, MpcEngine};
 
 use super::{FlowError, FlowNetwork};
 
@@ -49,7 +48,7 @@ pub async fn min_cost_bipartite_matching<'a, E: MpcEngine + 'a, const N: usize>(
 
 #[cfg(test)]
 mod tests {
-    use crate::circuits::{testing::*, *};
+    use mpc::circuits::{testing::*, *};
 
     use super::min_cost_bipartite_matching;
 
