@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+argh = "0.1.7"
 futures = "0.3.19"
 mpc = { path = "../mpc" }
 mpc_flow = { path = "../mpc_flow" }

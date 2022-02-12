@@ -1,12 +1,33 @@
+use argh::FromArgs;
 use mpc::{
     circuits::{join_circuits_all, IntShare},
-    executor::{self, MpcExecutionContext, MpcExecutionStats},
+    executor::{self, MpcExecutionContext},
     fields::Mersenne127,
     spdz::{PrecomputedSpdzDealer, SpdzEngine},
     transport::{self, NetworkConfig},
     MpcEngine,
 };
 use ndarray::Array;
+
+#[derive(FromArgs, Debug)]
+/// Test app.
+struct Options {
+    /// path to configuration file
+    #[argh(option)]
+    config: String,
+
+    /// current party ID
+    #[argh(option)]
+    id: usize,
+
+    /// path to private TLS key
+    #[argh(option)]
+    private_key: String,
+
+    /// path to precomputed data file
+    #[argh(option)]
+    precomp: String,
+}
 
 type Fp = Mersenne127;
 
@@ -29,35 +50,26 @@ pub async fn test_circuit<E: MpcEngine>(ctx: &MpcExecutionContext<E>) -> Vec<i64
     join_circuits_all(left.into_iter().map(|x| x.open_unchecked(ctx))).await
 }
 
-async fn run_node(conf: NetworkConfig, party_id: usize) -> (Vec<i64>, MpcExecutionStats) {
-    let private_key =
-        transport::load_private_key(format!("test-env/node{party_id}/private.key")).unwrap();
+#[tokio::main]
+async fn main() {
+    let options: Options = argh::from_env();
 
-    let connection = transport::connect_multiparty(&conf, private_key, party_id)
+    let party_id = options.id;
+    let config = NetworkConfig::load(options.config).unwrap();
+    let private_key = transport::load_private_key(options.private_key).unwrap();
+    let dealer = PrecomputedSpdzDealer::from_file(options.precomp).unwrap();
+
+    let connection = transport::connect_multiparty(&config, private_key, party_id)
         .await
         .unwrap();
 
-    let dealer =
-        PrecomputedSpdzDealer::from_file(format!("test-env/node{party_id}/precomp.bin")).unwrap();
     let engine: SpdzEngine<Fp, _, _> = SpdzEngine::new(dealer, connection);
 
-    executor::run_circuit_in_background(engine, Vec::new(), |ctx, _| Box::pin(test_circuit(ctx)))
-        .await
-        .unwrap()
-}
+    let (result, stats) = executor::run_circuit_in_background(engine, Vec::new(), |ctx, _| {
+        Box::pin(test_circuit(ctx))
+    })
+    .await
+    .unwrap();
 
-#[tokio::main]
-async fn main() {
-    let conf = NetworkConfig::load("test-env/common/config.json").unwrap();
-
-    let results: Vec<_> = futures::future::join_all(
-        (0..conf.parties.len())
-            .map(|id| tokio::spawn(run_node(conf.clone(), id)))
-            .map(|task| async move { task.await.unwrap() }),
-    )
-    .await;
-
-    let (result, stats) = &results[0];
     dbg!(result, stats);
-    assert!(results.iter().all(|x| *x == results[0]));
 }
