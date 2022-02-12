@@ -37,7 +37,7 @@ pub struct RawNetworkPartyConfig {
 
 impl NetworkConfig {
     /// Load configuration from JSON file.
-    pub fn load(path: impl AsRef<Path>) -> Result<Self, io::Error> {
+    pub fn load(path: impl AsRef<Path>) -> io::Result<Self> {
         let path = path.as_ref();
         let parent_dir = path
             .parent()
@@ -61,7 +61,7 @@ impl NetworkConfig {
 fn parse_raw_party_config(
     parent_dir: &Path,
     raw: RawNetworkPartyConfig,
-) -> Result<NetworkPartyConfig, io::Error> {
+) -> io::Result<NetworkPartyConfig> {
     Ok(NetworkPartyConfig {
         address: raw.address,
         certificate: load_certificate(parent_dir.join(raw.certificate))?,
@@ -69,7 +69,7 @@ fn parse_raw_party_config(
 }
 
 /// Load X.509 certificate from file.
-pub fn load_certificate(path: impl AsRef<Path>) -> Result<Certificate, io::Error> {
+pub fn load_certificate(path: impl AsRef<Path>) -> io::Result<Certificate> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
     if let Some(Item::X509Certificate(cert)) = rustls_pemfile::read_one(&mut reader)? {
@@ -80,7 +80,7 @@ pub fn load_certificate(path: impl AsRef<Path>) -> Result<Certificate, io::Error
 }
 
 /// Load PKCS#8 private key from file.
-pub fn load_private_key(path: impl AsRef<Path>) -> Result<PrivateKey, io::Error> {
+pub fn load_private_key(path: impl AsRef<Path>) -> io::Result<PrivateKey> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
     if let Some(Item::PKCS8Key(key)) = rustls_pemfile::read_one(&mut reader)? {

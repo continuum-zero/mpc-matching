@@ -70,11 +70,12 @@ pub trait MpcDealer: MpcContext {
     /// Random sharing of a secret random triple (a, b, c) that satisfies ab = c.
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share);
 
-    /// Random sharing of a secret N-bit unsigned integer.
+    /// Random sharing of a secret random N-bit unsigned integer.
     fn next_uint(&mut self, bits: usize) -> Self::Share;
 
     /// Returns true if dealer cannot produce more parameters of some type.
-    /// Once this happens, other all methods return invalid random values.
+    /// Once this happens, all other methods return undefined values,
+    /// and circuit executor aborts before any new communication happens.
     fn is_exhausted(&self) -> bool;
 }
 

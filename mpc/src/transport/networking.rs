@@ -36,7 +36,7 @@ pub async fn connect_multiparty<T>(
     config: &NetworkConfig,
     private_key: PrivateKey,
     party_id: usize,
-) -> Result<MultipartyTransport<T, NetChannel<T>>, io::Error>
+) -> io::Result<MultipartyTransport<T, NetChannel<T>>>
 where
     T: Serialize + DeserializeOwned,
 {
@@ -72,7 +72,7 @@ async fn listen_for_parties(
     parties: &[NetworkPartyConfig],
     private_cert: &PrivateCert,
     addr: SocketAddr,
-) -> Result<Vec<TlsStream<TcpStream>>, io::Error> {
+) -> io::Result<Vec<TlsStream<TcpStream>>> {
     if parties.is_empty() {
         return Ok(Vec::new());
     }
@@ -111,7 +111,7 @@ async fn accept_party(
     parties: &[NetworkPartyConfig],
     private_cert: &PrivateCert,
     mut socket: TcpStream,
-) -> Result<(TlsStream<TcpStream>, usize), io::Error> {
+) -> io::Result<(TlsStream<TcpStream>, usize)> {
     let party_id = socket.read_u32().await? as usize;
     if party_id >= parties.len() {
         return Err(io::Error::new(io::ErrorKind::Other, "Invalid party ID"));
@@ -127,7 +127,7 @@ async fn connect_to_party(
     other_party: &NetworkPartyConfig,
     private_cert: &PrivateCert,
     this_party_id: usize,
-) -> Result<TlsStream<TcpStream>, io::Error> {
+) -> io::Result<TlsStream<TcpStream>> {
     let mut socket = loop {
         match TcpStream::connect(other_party.address).await {
             Ok(socket) => break socket,
@@ -147,7 +147,7 @@ async fn wrap_tls_client(
     socket: TcpStream,
     other_cert: Certificate,
     private_cert: PrivateCert,
-) -> Result<TlsStream<TcpStream>, io::Error> {
+) -> io::Result<TlsStream<TcpStream>> {
     let root_cert_store = root_cert_store_from_cert(other_cert).await?;
 
     let tls_config = ClientConfig::builder()
@@ -166,7 +166,7 @@ async fn wrap_tls_server(
     socket: TcpStream,
     other_cert: Certificate,
     private_cert: PrivateCert,
-) -> Result<TlsStream<TcpStream>, io::Error> {
+) -> io::Result<TlsStream<TcpStream>> {
     let root_cert_store = root_cert_store_from_cert(other_cert).await?;
     let client_cert_verifier = AllowAnyAuthenticatedClient::new(root_cert_store);
 
@@ -181,7 +181,7 @@ async fn wrap_tls_server(
 }
 
 /// Create root certificate store from a single certificate.
-async fn root_cert_store_from_cert(cert: Certificate) -> Result<RootCertStore, io::Error> {
+async fn root_cert_store_from_cert(cert: Certificate) -> io::Result<RootCertStore> {
     let mut store = RootCertStore::empty();
     store
         .add(&cert)
