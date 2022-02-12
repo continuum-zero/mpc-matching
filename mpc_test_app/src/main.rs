@@ -1,16 +1,20 @@
+mod circuits;
+
 use argh::FromArgs;
 use mpc::{
-    circuits::{join_circuits_all, IntShare},
-    executor::{self, MpcExecutionContext},
     fields::Mersenne127,
     spdz::{PrecomputedSpdzDealer, SpdzEngine},
     transport::{self, NetworkConfig},
-    MpcEngine,
 };
-use ndarray::Array;
 
-#[derive(FromArgs, Debug)]
+type Fp = Mersenne127;
+
+const NUM_BITS: usize = 64;
+
+const MAX_PREFERENCE_VALUE: u64 = 100;
+
 /// Test app.
+#[derive(FromArgs, Debug)]
 struct Options {
     /// path to configuration file
     #[argh(option)]
@@ -29,27 +33,6 @@ struct Options {
     precomp: String,
 }
 
-type Fp = Mersenne127;
-
-pub async fn test_circuit<E: MpcEngine>(ctx: &MpcExecutionContext<E>) -> Vec<i64> {
-    let num_verts = 5;
-    let mut costs = Array::default([num_verts, num_verts]);
-
-    for i in 0..num_verts {
-        for j in 0..num_verts {
-            let c = if i == (j + 1) % num_verts { 1 } else { 2 };
-            costs[[i, j]] = IntShare::<_, 64>::from_plain(ctx, c);
-        }
-    }
-
-    let (left, _) = mpc_flow::min_cost_bipartite_matching(ctx, costs.view())
-        .await
-        .unwrap();
-
-    ctx.ensure_integrity();
-    join_circuits_all(left.into_iter().map(|x| x.open_unchecked(ctx))).await
-}
-
 #[tokio::main]
 async fn main() {
     let options: Options = argh::from_env();
@@ -65,11 +48,15 @@ async fn main() {
 
     let engine: SpdzEngine<Fp, _, _> = SpdzEngine::new(dealer, connection);
 
-    let (result, stats) = executor::run_circuit_in_background(engine, Vec::new(), |ctx, _| {
-        Box::pin(test_circuit(ctx))
-    })
+    let preferences = vec![party_id as u64; 1];
+
+    let best_match = circuits::compute_private_matching::<_, _, NUM_BITS>(
+        engine,
+        preferences,
+        MAX_PREFERENCE_VALUE,
+    )
     .await
     .unwrap();
 
-    dbg!(result, stats);
+    println!("You have been matched to {best_match}.");
 }

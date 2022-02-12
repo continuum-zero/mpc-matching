@@ -9,4 +9,5 @@ futures = "0.3.19"
 mpc = { path = "../mpc" }
 mpc_flow = { path = "../mpc_flow" }
 ndarray = "0.15.4"
+rand = "0.8.4"
 tokio = { version = "1.15.0", features = ["full"] }
