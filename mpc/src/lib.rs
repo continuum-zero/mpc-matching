@@ -5,6 +5,8 @@ pub mod plaintext;
 pub mod spdz;
 pub mod transport;
 
+pub use ff;
+
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 use async_trait::async_trait;
