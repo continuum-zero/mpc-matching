@@ -26,8 +26,8 @@ impl FromStr for FieldType {
     }
 }
 
-#[derive(FromArgs)]
 /// SPDZ offline preprocessing tool.
+#[derive(FromArgs)]
 struct Options {
     /// number of parties participating in protocol
     #[argh(option)]
