@@ -1,3 +1,6 @@
+mod config;
+pub use config::*;
+
 mod multiparty;
 pub use multiparty::*;
 
