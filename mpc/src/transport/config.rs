@@ -22,11 +22,13 @@ pub struct NetworkPartyConfig {
     pub certificate: Certificate,
 }
 
+/// Raw parsed JSON configuration file.
 #[derive(Clone, Debug, Deserialize)]
 struct RawNetworkConfig {
     parties: Vec<RawNetworkPartyConfig>,
 }
 
+/// Raw parsed JSON party configuration file.
 #[derive(Clone, Debug, Deserialize)]
 pub struct RawNetworkPartyConfig {
     address: SocketAddr,
@@ -34,11 +36,12 @@ pub struct RawNetworkPartyConfig {
 }
 
 impl NetworkConfig {
+    /// Load configuration from JSON file.
     pub fn load(path: impl AsRef<Path>) -> Result<Self, io::Error> {
         let path = path.as_ref();
         let parent_dir = path
             .parent()
-            .ok_or_else(|| io::Error::new(io::ErrorKind::Other, "Invalid path"))?;
+            .ok_or_else(|| io::Error::new(io::ErrorKind::InvalidInput, "Invalid path"))?;
 
         let file = File::open(path)?;
         let reader = BufReader::new(file);
@@ -54,6 +57,7 @@ impl NetworkConfig {
     }
 }
 
+/// Parse raw party configuration.
 fn parse_raw_party_config(
     parent_dir: &Path,
     raw: RawNetworkPartyConfig,
@@ -64,6 +68,7 @@ fn parse_raw_party_config(
     })
 }
 
+/// Load X.509 certificate from file.
 pub fn load_certificate(path: impl AsRef<Path>) -> Result<Certificate, io::Error> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);
@@ -74,6 +79,7 @@ pub fn load_certificate(path: impl AsRef<Path>) -> Result<Certificate, io::Error
     }
 }
 
+/// Load PKCS#8 private key from file.
 pub fn load_private_key(path: impl AsRef<Path>) -> Result<PrivateKey, io::Error> {
     let file = File::open(path)?;
     let mut reader = BufReader::new(file);

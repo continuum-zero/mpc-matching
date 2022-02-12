@@ -1,4 +1,4 @@
-use std::{io, iter, net::SocketAddr, sync::Arc, time::Duration};
+use std::{io, net::SocketAddr, sync::Arc, time::Duration};
 
 use futures::{future, stream::FuturesUnordered, StreamExt};
 use serde::{de::DeserializeOwned, Serialize};
@@ -8,10 +8,9 @@ use tokio::{
 };
 use tokio_rustls::{
     rustls::{
-        server::AllowAnyAuthenticatedClient, Certificate, ClientConfig, OwnedTrustAnchor,
-        PrivateKey, RootCertStore, ServerConfig,
+        server::AllowAnyAuthenticatedClient, Certificate, ClientConfig, PrivateKey, RootCertStore,
+        ServerConfig,
     },
-    webpki::TrustAnchor,
     TlsAcceptor, TlsConnector, TlsStream,
 };
 
@@ -26,9 +25,10 @@ const VIRTUAL_DOMAIN_FOR_TLS: &str = "mpc";
 /// Delay in milliseconds after which connection to peer is retried.
 const CONNECTION_RETRY_DELAY: u64 = 1000;
 
+/// Public certificate and its private key.
 type PrivateCert = (Certificate, PrivateKey);
 
-/// Bincode-encoded network channel.
+/// Bincode-encoded and TLS-encrypted TCP connection.
 pub type NetChannel<T> = BincodeStreamSink<T, TlsStream<TcpStream>>;
 
 /// Establish network connections for multiparty protocol.
@@ -112,17 +112,10 @@ async fn accept_party(
     private_cert: &PrivateCert,
     mut socket: TcpStream,
 ) -> Result<(TlsStream<TcpStream>, usize), io::Error> {
-    if socket.read_u32().await? != 0xDEADBEEF {
-        return Err(io::Error::new(io::ErrorKind::Other, "Invalid magic"));
-    }
-
     let party_id = socket.read_u32().await? as usize;
     if party_id >= parties.len() {
         return Err(io::Error::new(io::ErrorKind::Other, "Invalid party ID"));
     }
-
-    socket.write_u32(0xDEADBEEF).await?;
-    socket.flush().await?;
 
     let other_cert = parties[party_id].certificate.clone();
     let tls_socket = wrap_tls_server(socket, other_cert, private_cert.clone()).await?;
@@ -142,18 +135,14 @@ async fn connect_to_party(
         }
     };
 
-    socket.write_u32(0xDEADBEEF).await?;
     socket.write_u32(this_party_id as u32).await?;
     socket.flush().await?;
-
-    if socket.read_u32().await? != 0xDEADBEEF {
-        return Err(io::Error::new(io::ErrorKind::Other, "Invalid magic"));
-    }
 
     let other_cert = other_party.certificate.clone();
     wrap_tls_client(socket, other_cert, private_cert.clone()).await
 }
 
+/// Wrap TCP client socket with TLS layer. Authenticates both sides using specified certificates.
 async fn wrap_tls_client(
     socket: TcpStream,
     other_cert: Certificate,
@@ -172,6 +161,7 @@ async fn wrap_tls_client(
     Ok(connector.connect(domain, socket).await?.into())
 }
 
+/// Wrap incoming TCP connection with TLS layer. Authenticates both sides using specified certificates.
 async fn wrap_tls_server(
     socket: TcpStream,
     other_cert: Certificate,
@@ -190,18 +180,11 @@ async fn wrap_tls_server(
     Ok(acceptor.accept(socket).await?.into())
 }
 
+/// Create root certificate store from a single certificate.
 async fn root_cert_store_from_cert(cert: Certificate) -> Result<RootCertStore, io::Error> {
     let mut store = RootCertStore::empty();
-
-    let anchor = TrustAnchor::try_from_cert_der(&cert.0)
+    store
+        .add(&cert)
         .map_err(|err| io::Error::new(io::ErrorKind::InvalidInput, err))?;
-
-    let owned_anchor = OwnedTrustAnchor::from_subject_spki_name_constraints(
-        anchor.subject,
-        anchor.spki,
-        anchor.name_constraints,
-    );
-
-    store.add_server_trust_anchors(iter::once(owned_anchor));
     Ok(store)
 }
