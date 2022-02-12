@@ -1,12 +1,24 @@
 use std::ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
+use serde::{Deserialize, Serialize};
+
 use crate::{MpcField, MpcShare};
 
 /// Private share of a field element in SPDZ protocol.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub struct SpdzShare<T> {
-    pub(super) value: T,
-    pub(super) mac: T,
+    pub value: T,
+    pub mac: T,
+}
+
+impl<T: MpcField> SpdzShare<T> {
+    /// Make SPDZ share for given plain value, authorization key share and party ID.
+    pub fn from_plain(value: T, auth_key: T, party_id: usize) -> Self {
+        Self {
+            value: if party_id == 0 { value } else { T::zero() },
+            mac: value * auth_key,
+        }
+    }
 }
 
 impl<T: MpcField> MpcShare for SpdzShare<T> {

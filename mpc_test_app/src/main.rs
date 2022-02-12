@@ -2,7 +2,7 @@ use mpc::{
     circuits::{graphs, join_circuits_all, IntShare},
     executor::{self, MpcExecutionContext, MpcExecutionStats},
     fields::Mersenne127,
-    spdz::{FakeSpdzDealer, SpdzEngine},
+    spdz::{PrecomputedSpdzDealer, SpdzEngine},
     transport::{self, NetworkConfig},
     MpcEngine,
 };
@@ -37,7 +37,8 @@ async fn run_node(conf: NetworkConfig, party_id: usize) -> (Vec<i64>, MpcExecuti
         .await
         .unwrap();
 
-    let dealer: FakeSpdzDealer<Fp> = FakeSpdzDealer::new(conf.parties.len(), party_id, 123);
+    let dealer =
+        PrecomputedSpdzDealer::from_file(format!("test-env/node{party_id}/precomp.bin")).unwrap();
     let engine: SpdzEngine<Fp, _, _> = SpdzEngine::new(dealer, connection);
 
     executor::run_circuit_in_background(engine, Vec::new(), |ctx, _| Box::pin(test_circuit(ctx)))

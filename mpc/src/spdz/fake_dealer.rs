@@ -44,14 +44,7 @@ impl<T: MpcField> MpcContext for FakeSpdzDealer<T> {
 
 impl<T: MpcField> MpcDealer for FakeSpdzDealer<T> {
     fn share_plain(&self, x: Self::Field) -> Self::Share {
-        SpdzShare {
-            value: if self.auth_key.party_id == 0 {
-                x
-            } else {
-                T::zero()
-            },
-            mac: x * self.auth_key.share_value,
-        }
+        SpdzShare::from_plain(x, self.auth_key.share_value, self.party_id())
     }
 
     fn next_beaver_triple(&mut self) -> (Self::Share, Self::Share, Self::Share) {

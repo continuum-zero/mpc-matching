@@ -2,6 +2,7 @@
 
 members = [
     "mpc",
+    "dealer",
     "mpc_test_app",
 ]
 

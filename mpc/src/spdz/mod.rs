@@ -4,6 +4,9 @@ pub use engine::{SpdzEngine, SpdzError, SpdzMessage};
 mod fake_dealer;
 pub use fake_dealer::FakeSpdzDealer;
 
+mod precomp_dealer;
+pub use precomp_dealer::{PrecomputedSpdzData, PrecomputedSpdzDealer};
+
 mod share;
 pub use share::SpdzShare;
 
