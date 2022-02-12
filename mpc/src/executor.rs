@@ -1,5 +1,6 @@
 use std::{
     cell::{Cell, RefCell, RefMut},
+    fmt,
     future::Future,
     mem,
     pin::Pin,
@@ -10,6 +11,28 @@ use std::{
 use tokio::sync::oneshot;
 
 use crate::{MpcDealer, MpcEngine, MpcShare};
+
+/// Error during MPC circuit execution.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MpcExecutionError<T> {
+    Engine(T),
+    DealerExhausted,
+}
+
+impl<T: fmt::Display> fmt::Display for MpcExecutionError<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match *self {
+            Self::Engine(ref err) => err.fmt(f),
+            Self::DealerExhausted => write!(f, "Dealer exhausted"),
+        }
+    }
+}
+
+impl<T> From<T> for MpcExecutionError<T> {
+    fn from(err: T) -> Self {
+        MpcExecutionError::Engine(err)
+    }
+}
 
 /// Statistics collected during MPC execution.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq)]
@@ -79,7 +102,7 @@ pub async fn run_circuit<Engine, F, T>(
     mut engine: Engine,
     inputs: &[Engine::Field],
     circuit_fn: F,
-) -> Result<(T, MpcExecutionStats), Engine::Error>
+) -> Result<(T, MpcExecutionStats), MpcExecutionError<Engine::Error>>
 where
     Engine: MpcEngine,
     F: FnOnce(
@@ -96,7 +119,12 @@ where
     let mut stats = MpcExecutionStats::default();
 
     loop {
-        if let Poll::Ready(outputs) = futures::poll!(future.as_mut()) {
+        let poll = futures::poll!(future.as_mut());
+        if ctx.engine().dealer().is_exhausted() {
+            return Err(MpcExecutionError::DealerExhausted);
+        }
+
+        if let Poll::Ready(outputs) = poll {
             stats.num_integrity_checks += 1;
             ctx.engine().check_integrity().await?;
             return Ok((outputs, stats));
@@ -126,7 +154,7 @@ pub async fn run_circuit_in_background<Engine, Error, F, T>(
     engine: Engine,
     inputs: Vec<Engine::Field>,
     circuit_fn: F,
-) -> Result<(T, MpcExecutionStats), Engine::Error>
+) -> Result<(T, MpcExecutionStats), MpcExecutionError<Engine::Error>>
 where
     Engine: 'static + Send + MpcEngine<Error = Error>,
     Error: 'static + Send,

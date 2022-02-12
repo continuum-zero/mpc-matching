@@ -88,6 +88,10 @@ impl<T: MpcField> MpcDealer for PlainMpcEngine<T> {
             acc.double() + Self::Field::from(self.rng.gen_range(0..=1))
         }))
     }
+
+    fn is_exhausted(&self) -> bool {
+        false
+    }
 }
 
 /// Mock share of a computation run on a single node. Wraps plaintext value.

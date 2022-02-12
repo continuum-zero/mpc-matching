@@ -51,6 +51,7 @@ pub enum SpdzError {
     CommitmentHashMismatch(usize),
     StateHashMismatch,
     MacCheckFailed,
+    DealerExhausted,
 }
 
 impl fmt::Display for SpdzError {
@@ -66,6 +67,7 @@ impl fmt::Display for SpdzError {
             }
             Self::StateHashMismatch => write!(f, "State hashes do not match"),
             Self::MacCheckFailed => write!(f, "MAC check failed"),
+            Self::DealerExhausted => write!(f, "Dealer exhausted"),
         }
     }
 }
@@ -148,6 +150,10 @@ where
             })
             .unzip();
 
+        if self.dealer.is_exhausted() {
+            return Err(SpdzError::DealerExhausted);
+        }
+
         let received_messages = self
             .transport
             .exchange_with_all(SpdzMessage::MaskedInputs(own_deltas.clone()))
@@ -172,6 +178,10 @@ where
             } else {
                 return Err(SpdzError::UnexpectedMessage(other_id));
             }
+        }
+
+        if self.dealer.is_exhausted() {
+            return Err(SpdzError::DealerExhausted);
         }
 
         for deltas in all_deltas {

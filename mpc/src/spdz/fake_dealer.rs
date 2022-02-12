@@ -69,6 +69,10 @@ impl<T: MpcField> MpcDealer for FakeSpdzDealer<T> {
         });
         self.bits_gen.gen_authenticated_share(value)
     }
+
+    fn is_exhausted(&self) -> bool {
+        false
+    }
 }
 
 impl<T: MpcField> SpdzDealer for FakeSpdzDealer<T> {

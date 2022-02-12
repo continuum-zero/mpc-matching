@@ -72,6 +72,10 @@ pub trait MpcDealer: MpcContext {
 
     /// Random sharing of a secret N-bit unsigned integer.
     fn next_uint(&mut self, bits: usize) -> Self::Share;
+
+    /// Returns true if dealer cannot produce more parameters of some type.
+    /// Once this happens, other all methods return invalid random values.
+    fn is_exhausted(&self) -> bool;
 }
 
 /// Low-level interface of sharing-based MPC protocol.
