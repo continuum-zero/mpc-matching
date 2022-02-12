@@ -5,7 +5,7 @@ use std::{
 
 use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcField, MpcShare};
 
-use super::{bitwise_compare, bitwise_equal, BitShare, WrappedShare};
+use super::{bitwise_compare, bitwise_equal, mul, BitShare, WrappedShare};
 
 /// Share of N-bit signed integer embedded in a prime field, where 2 <= N <= min(Field::SAFE_BITS-1, 64).
 /// Valid values are from range [-2^(N-1); 2^(N-1)-1] and are supported by all operations,
@@ -93,6 +93,14 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Multiply share by two.
     pub fn double(self) -> Self {
         Self::wrap(self.0.double())
+    }
+
+    /// Multiply two integer shares.
+    pub async fn mul<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    where
+        E: MpcEngine<Share = T>,
+    {
+        Self::wrap(mul(ctx, self.0, rhs.0).await)
     }
 
     /// Remainder modulo 2^k for k <= N. Result is given in range [0;2^k).
