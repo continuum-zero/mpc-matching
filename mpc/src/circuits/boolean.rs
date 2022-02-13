@@ -233,4 +233,20 @@ mod tests {
         })
         .await;
     }
+
+    #[tokio::test]
+    async fn test_swap_if() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let bits = [BitShare::zero(), BitShare::one(ctx)];
+                let vals = [PlainShare(420.into()), PlainShare(1337.into())];
+                for i in 0..=1 {
+                    let result = bits[i].swap_if(ctx, vals[0], vals[1]).await;
+                    assert_eq!(result.0, vals[i]);
+                    assert_eq!(result.1, vals[1 - i]);
+                }
+            })
+        })
+        .await;
+    }
 }

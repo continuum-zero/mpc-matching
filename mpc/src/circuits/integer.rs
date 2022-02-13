@@ -374,6 +374,9 @@ fn random_bit_mask<E: MpcEngine>(
 
 #[cfg(test)]
 mod tests {
+    use ff::PrimeField;
+    use std::cmp::{max, min};
+
     use crate::{
         circuits::{testing::*, *},
         plaintext::PlainShare,
@@ -498,6 +501,127 @@ mod tests {
                     let share: IntShare<_, 8> = IntShare::from_plain(ctx, value);
                     let bit = share.equal_zero(ctx).await;
                     assert_eq!(bit.open_unchecked(ctx).await, value == 0);
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_wrap_safe() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [-32768, -12, 0, 4, 32767, -64000, -32769, 32768, 128000];
+                for value in cases {
+                    let field_value = if value >= 0 {
+                        MockField::from(value as u64)
+                    } else {
+                        -MockField::from(-value as u64)
+                    };
+                    let share: IntShare<_, 16> =
+                        IntShare::wrap_safe(ctx, ctx.plain(field_value)).await;
+                    let opened_value = share.open_unchecked(ctx).await;
+                    assert!(-(1 << 15) <= opened_value && opened_value < (1 << 15));
+                    if -(1 << 15) <= value && value < (1 << 15) {
+                        assert_eq!(opened_value, value);
+                    }
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_wrap_safe_big_incorrect_value() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let field_value =
+                    MockField::from_str_vartime("1234567890123456789012345678901").unwrap();
+                let share: IntShare<_, 16> = IntShare::wrap_safe(ctx, ctx.plain(field_value)).await;
+                let opened_value = share.open_unchecked(ctx).await;
+                assert!(-(1 << 15) <= opened_value && opened_value < (1 << 15));
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_clamp() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let (low, high) = (0, 100);
+                let share_low: IntShare<_, 8> = IntShare::from_plain(ctx, low);
+                let share_high: IntShare<_, 8> = IntShare::from_plain(ctx, high);
+                let cases = [0, 1, -1, 100, -100, 101];
+                for value in cases {
+                    let share: IntShare<_, 8> = IntShare::from_plain(ctx, value)
+                        .clamp(ctx, share_low, share_high)
+                        .await;
+                    assert_eq!(share.open_unchecked(ctx).await, max(low, min(high, value)));
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_less() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [(0, 1), (1, 1), (1, 0), (-128, 127), (127, -128)];
+                for (value1, value2) in cases {
+                    let share1: IntShare<_, 8> = IntShare::from_plain(ctx, value1);
+                    let share2: IntShare<_, 8> = IntShare::from_plain(ctx, value2);
+                    let bit = share1.less(ctx, share2).await;
+                    assert_eq!(bit.open_unchecked(ctx).await, value1 < value2);
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_greater() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [(0, 1), (1, 1), (1, 0), (-128, 127), (127, -128)];
+                for (value1, value2) in cases {
+                    let share1: IntShare<_, 8> = IntShare::from_plain(ctx, value1);
+                    let share2: IntShare<_, 8> = IntShare::from_plain(ctx, value2);
+                    let bit = share1.greater(ctx, share2).await;
+                    assert_eq!(bit.open_unchecked(ctx).await, value1 > value2);
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_less_eq() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [(0, 1), (1, 1), (1, 0), (-128, 127), (127, -128)];
+                for (value1, value2) in cases {
+                    let share1: IntShare<_, 8> = IntShare::from_plain(ctx, value1);
+                    let share2: IntShare<_, 8> = IntShare::from_plain(ctx, value2);
+                    let bit = share1.less_eq(ctx, share2).await;
+                    assert_eq!(bit.open_unchecked(ctx).await, value1 <= value2);
+                }
+            })
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_greater_eq() {
+        test_circuit(|ctx| {
+            Box::pin(async {
+                let cases = [(0, 1), (1, 1), (1, 0), (-128, 127), (127, -128)];
+                for (value1, value2) in cases {
+                    let share1: IntShare<_, 8> = IntShare::from_plain(ctx, value1);
+                    let share2: IntShare<_, 8> = IntShare::from_plain(ctx, value2);
+                    let bit = share1.greater_eq(ctx, share2).await;
+                    assert_eq!(bit.open_unchecked(ctx).await, value1 >= value2);
                 }
             })
         })
