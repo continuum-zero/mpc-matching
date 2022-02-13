@@ -52,25 +52,24 @@ where
 async fn matching_circuit<E: MpcEngine, const N: usize>(
     ctx: &MpcExecutionContext<E>,
     inputs: Vec<Vec<E::Share>>,
-    _max_preference_value: u64,
+    max_preference_value: u64,
 ) -> Vec<E::Field> {
     if !inputs.iter().all(|x| x.len() == inputs[0].len()) {
         panic!("Input length mismatch"); // TODO: don't panic
     }
 
+    let max_preference_value = IntShare::from_plain(ctx, max_preference_value as i64);
+
     // The first input of each party is its output mask.
     let output_masks = inputs.iter().map(|vec| vec[0]);
 
     // The rest of inputs form preference vectors.
-    let preferences: Vec<_> = inputs
-        .iter()
-        .map(|vec| {
-            vec[1..]
-                .iter()
-                .map(|&x| IntShare::<_, N>::wrap(x))
-                .collect() // TODO: clamp values
-        })
-        .collect();
+    let preferences: Vec<_> = join_circuits_all(inputs.iter().map(|vec| {
+        join_circuits_all(vec[1..].iter().map(|&x| {
+            IntShare::<_, N>::wrap_clamped(ctx, x, IntShare::zero(), max_preference_value)
+        }))
+    }))
+    .await;
 
     let first_right_index = preferences.len() / 2;
     let left_preferences = &preferences[..first_right_index];

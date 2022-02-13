@@ -3,7 +3,9 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcField, MpcShare};
+use crate::{
+    executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine, MpcField, MpcShare,
+};
 
 use super::{bitwise_compare, bitwise_equal, mul, BitShare, WrappedShare};
 
@@ -34,6 +36,33 @@ impl<T: MpcShare, const N: usize> WrappedShare for IntShare<T, N> {
 }
 
 impl<T: MpcShare, const N: usize> IntShare<T, N> {
+    /// Clamp value and wrap. For overflown inputs, privacy is compromised
+    /// and exact value is undefined, but is clamped to be in valid range.
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
+    pub async fn wrap_clamped<E>(
+        ctx: &MpcExecutionContext<E>,
+        raw: T,
+        low: Self,
+        high: Self,
+    ) -> Self
+    where
+        E: MpcEngine<Share = T>,
+    {
+        let shift = ctx.plain(E::Field::power_of_two(N - 1));
+
+        // If input is valid, then unsigned value is in range [0; 2^N-1].
+        let unsigned_value = Self(raw + shift);
+
+        // If input is valid, then mod 2^N doesn't change anything,
+        // otherwise `mod_power_of_two` may return something weird,
+        // but its output always has at most N bits.
+        let unsigned_bit_clamped = unsigned_value.mod_power_of_two(ctx, N).await;
+
+        // Value must be valid N-bit signed integer.
+        let value = unsigned_bit_clamped - Self::wrap(shift);
+        value.clamp(ctx, low, high).await
+    }
+
     /// Wrap plain value. Input must be an N-bit signed integer.
     pub fn from_plain<E>(ctx: &MpcExecutionContext<E>, value: i64) -> Self
     where
@@ -105,6 +134,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Remainder modulo 2^k for k <= N. Result is given in range [0;2^k).
     /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
+    /// This method is guaranteed to return k-bit integer even for invalid inputs.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
     pub async fn mod_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
     where
@@ -239,6 +269,18 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         E: MpcEngine<Share = T>,
     {
         (self - rhs).equal_zero(ctx).await
+    }
+
+    /// Returns max(low, min(high, self)).
+    /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
+    pub async fn clamp<E>(self, ctx: &MpcExecutionContext<E>, low: Self, high: Self) -> Self
+    where
+        E: MpcEngine<Share = T>,
+    {
+        let (less_than_low, greater_than_high) =
+            join_circuits!(self.less(ctx, low), self.greater(ctx, high));
+        let value = less_than_low.select(ctx, low, self).await;
+        greater_than_high.select(ctx, high, value).await
     }
 }
 
