@@ -38,7 +38,8 @@ for party_id in range(num_parties):
             '--config', f'{config_path}',
             '--id', f'{party_id}',
             '--private-key', f'{args.dir}/node{party_id}/private.key',
-            '--precomp', f'{args.dir}/node{party_id}/precomp.bin'
+            '--precomp', f'{args.dir}/node{party_id}/precomp.bin',
+            '--preferences', f'{party_id},{party_id+1},{party_id+5}'
         ],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
