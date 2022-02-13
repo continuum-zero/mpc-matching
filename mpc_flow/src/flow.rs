@@ -85,7 +85,7 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         Ok(state.into_flow_matrix().await)
     }
 
-    /// Get bound on cost of the most expensive path. Returns sum of costs on existing edges.
+    /// Get strict bound on cost of the most expensive path. Returns sum of costs on existing edges.
     async fn total_cost_bound<E>(&self, ctx: &MpcExecution<E>) -> IntShare<T, N>
     where
         E: MpcEngine<Share = T>,
@@ -96,7 +96,7 @@ impl<T: MpcShare, const N: usize> FlowNetwork<T, N> {
         )
         .await
         .into_iter()
-        .fold(IntShare::zero(), |acc, x| acc + x)
+        .fold(IntShare::one(ctx), |acc, x| acc + x)
     }
 }
 
@@ -128,20 +128,23 @@ impl<'a, E: MpcEngine, const N: usize> FlowState<'a, E, N> {
         net: FlowNetwork<E::Share, N>,
         cost_bound: IntShare<E::Share, N>,
     ) -> Self {
-        let n = net.adjacency.shape()[0];
-        if net.adjacency.shape() != [n, n] || net.cost.shape() != [n, n] {
-            panic!("Invalid input matrices");
+        let num_verts = net.adjacency.shape()[0];
+        if net.adjacency.shape() != [num_verts, num_verts] {
+            panic!("Invalid adjacency matrix");
+        }
+        if net.cost.shape() != [num_verts, num_verts] {
+            panic!("Invalid cost matrix");
         }
 
         Self {
             ctx,
-            permutation: (0..n)
+            permutation: (0..num_verts)
                 .map(|x| IntShare::from_plain(ctx, x as i64))
                 .collect(),
             cost: net.cost,
             residual: net.adjacency.to_owned(),
             adjacency: net.adjacency,
-            cost_bound: cost_bound + IntShare::one(ctx),
+            cost_bound,
             vertices: Vec::new(),
         }
     }
