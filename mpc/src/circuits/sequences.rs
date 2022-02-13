@@ -44,7 +44,6 @@ where
 }
 
 /// Compute product of given sequence of shares.
-/// Cost: n-1 multiplications, log_2(n) communication rounds, where n is sequence length.
 pub async fn product<E: MpcEngine>(
     ctx: &MpcExecution<E>,
     elems: impl IntoIterator<Item = E::Share>,
