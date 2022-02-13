@@ -14,7 +14,7 @@ def redirect_to_stdout(party_id, stream):
     for line in stream:
         line = line.decode('utf-8')
         with stdout_lock:
-            print(f'[{party_id}] {line}', end='')
+            print(f'[{party_id:02}] {line}', end='')
 
 
 parser = argparse.ArgumentParser(description='Run all nodes using generated configuration.')
