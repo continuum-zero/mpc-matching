@@ -15,7 +15,7 @@ Oblivious minimum cost maximum flow algorithm running under SPDZ protocol.
 
 ## What's included?
 
-- `mpc` library - mini-framework for MPC computation (SPDZ online phase, fundamental circuits and networking)
+- `mpc` library - mini-framework for MPC computation (SPDZ online phase, fundamental circuits etc)
 - `mpc_flow` library - implementation of oblivious minimum cost flow and matching algorithms for use in MPC
 - `dealer` - tool that precomputes stuff for SPDZ protocol
 - `mpc_test_app` - the secret matching application
