@@ -6,7 +6,7 @@ Maximizing average happiness privately & securely.
 
 Suppose there's a group of `n` ladies and `n` lads, and they want to be matched in pairs.
 Each person has some deeply hidden desires, represented by an integer vector.
-For each pair, cost of matching them together is a function of their desires.
+For each pair, cost of matching them together is a function of their desires (the lower it is, the better).
 We want to find a matching that minimizes the average cost, without revealing their secrets - each person should learn only who is their better half.
 
 ## How?
@@ -17,8 +17,8 @@ based on ideas from [[3](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1
 
 ## What's included?
 
-- `mpc` library - mini-framework for MPC computation (SPDZ online phase, fundamental circuits etc)
-- `mpc_flow` library - implementation of oblivious minimum cost flow and matching algorithms for use in MPC
+- `mpc` - mini-framework for MPC computation (SPDZ online phase, fundamental circuits etc)
+- `mpc_flow` - implementation of oblivious minimum cost flow and matching algorithms for use in MPC
 - `dealer` - tool that precomputes stuff for SPDZ protocol
 - `matcher` - the secret matching application
 
