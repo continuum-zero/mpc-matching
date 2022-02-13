@@ -1,0 +1,8 @@
+[workspace]
+
+members = [
+    "dealer",
+    "matcher",
+    "mpc_flow",
+    "mpc",
+]

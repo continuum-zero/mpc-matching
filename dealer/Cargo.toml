@@ -1,0 +1,10 @@
+[package]
+name = "dealer"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+argh = "0.1.7"
+mpc = { path = "../mpc" }
+rand = "0.8.4"
+serde = "1.0.136"
