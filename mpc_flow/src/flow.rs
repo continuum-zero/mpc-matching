@@ -489,6 +489,47 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_min_cost_flow_empty() {
+        TestNetwork::new(2)
+            .test(0, 1)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_min_cost_flow_single_path() {
+        TestNetwork::new(8)
+            .set_edge(3, 0, 1, true)
+            .set_edge(0, 1, 5, true)
+            .set_edge(1, 5, 5, true)
+            .set_edge(5, 4, 5, true)
+            .set_edge(4, 2, 5, true)
+            .set_edge(6,7, 5, false)
+            .test(3, 2)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_min_cost_flow_one_edge() {
+        TestNetwork::new(8)
+            .set_edge(3, 2, 1, true)
+            .test(3, 2)
+            .await;
+    }
+
+    #[tokio::test]
+    async fn test_min_cost_flow_simple() {
+        TestNetwork::new(4)
+            .set_edge(0, 1, 10, true)
+            .set_edge(0, 2, 1, true)
+            .set_edge(2, 1, 1, false)
+            .set_edge(1, 3, 1, true)
+            .set_edge(2, 3, 10, true)
+            .test(0, 3)
+            .await;
+    }
+
+
+    #[tokio::test]
     async fn test_apply_swaps_to_matrix() {
         test_circuit(|ctx| {
             Box::pin(async {
