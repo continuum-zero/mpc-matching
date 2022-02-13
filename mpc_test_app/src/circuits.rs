@@ -107,8 +107,11 @@ async fn matching_circuit<E: MpcEngine, const N: usize>(
 
     // The rest of inputs form preference vectors.
     let preferences: Vec<_> = join_circuits_all(inputs.iter().map(|vec| {
-        join_circuits_all(vec[1..].iter().map(|&x| {
-            IntShare::<_, N>::wrap_clamped(ctx, x, IntShare::zero(), max_preference_value)
+        join_circuits_all(vec[1..].iter().map(|&x| async move {
+            IntShare::<_, N>::wrap_safe(ctx, x)
+                .await
+                .clamp(ctx, IntShare::zero(), max_preference_value)
+                .await
         }))
     }))
     .await;

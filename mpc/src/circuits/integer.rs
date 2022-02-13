@@ -34,10 +34,10 @@ impl<T: MpcShare, const N: usize> WrappedShare for IntShare<T, N> {
 }
 
 impl<T: MpcShare, const N: usize> IntShare<T, N> {
-    /// Clamp value and wrap. For overflown inputs, privacy is compromised
-    /// and exact value is undefined, but is clamped to be in valid range.
+    /// Wrap raw share safely. For overflown inputs, privacy is compromised
+    /// and exact value is undefined, but is guaranteed to be a valid N-bit signed integer.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
-    pub async fn wrap_clamped<E>(ctx: &MpcExecution<E>, raw: T, low: Self, high: Self) -> Self
+    pub async fn wrap_safe<E>(ctx: &MpcExecution<E>, raw: T) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -52,8 +52,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
         let unsigned_bit_clamped = unsigned_value.mod_power_of_two(ctx, N).await;
 
         // Value must be valid N-bit signed integer.
-        let value = unsigned_bit_clamped - Self::wrap(shift);
-        value.clamp(ctx, low, high).await
+        unsigned_bit_clamped - Self::wrap(shift)
     }
 
     /// Wrap plain value. Input must be an N-bit signed integer.
