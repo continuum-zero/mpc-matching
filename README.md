@@ -31,11 +31,11 @@ based on ideas from [[3](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1
 ## Running
 
 1. Build everything: `cargo build --release`
-2. Create test environment for 16 nodes: `./prepare-test-env.py`
+2. Create test environment (default is 16 nodes): `./prepare-test-env.py`
 3. Precompute parameters for SPDZ: `./precompute-spdz.py`
 4. Run all test nodes locally: `./run-all-parties.py`
 
-You can run test nodes individually using `./run-party.py`, run scripts with `--help` for more information.
+You can run test nodes individually using `./run-party.py`; run scripts with `--help` for more information.
 
 ## References
 
