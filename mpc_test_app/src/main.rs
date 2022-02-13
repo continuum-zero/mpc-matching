@@ -1,5 +1,7 @@
 mod circuits;
 
+use std::time::Instant;
+
 use argh::FromArgs;
 use mpc::{
     fields::Mersenne127,
@@ -60,7 +62,13 @@ async fn main() {
     let dealer =
         PrecomputedSpdzDealer::from_file(options.precomp).expect("Invalid precomputed SPDZ data");
 
-    println!("Waiting for peers...");
+    let group_id = if party_id < config.parties.len() / 2 {
+        1
+    } else {
+        2
+    };
+
+    println!("You are in group {group_id}. Waiting for peers...");
 
     let connection = transport::connect_multiparty(&config, private_key, party_id)
         .await
@@ -68,9 +76,10 @@ async fn main() {
 
     println!("All peers connected, computing matching...");
 
+    let start_time = Instant::now();
     let engine: SpdzEngine<Fp, _, _> = SpdzEngine::new(dealer, connection);
 
-    let our_match = circuits::compute_private_matching::<_, _, NUM_BITS>(
+    let (our_match, execution_stats) = circuits::compute_private_matching::<_, _, NUM_BITS>(
         engine,
         preferences,
         MAX_PREFERENCE_VALUE,
@@ -78,5 +87,15 @@ async fn main() {
     .await
     .expect("MPC computation failed");
 
-    println!("You have been matched to {our_match}.");
+    let end_time = Instant::now();
+    let computation_time = end_time - start_time;
+
+    println!(
+        "You have been matched to {} (time: {:.1}s, openings: {}, rounds: {}, integrity checks: {}).",
+        our_match,
+        computation_time.as_secs_f64(),
+        execution_stats.num_openings,
+        execution_stats.num_rounds,
+        execution_stats.num_integrity_checks,
+    );
 }

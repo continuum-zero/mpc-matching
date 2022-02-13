@@ -2,7 +2,7 @@ use std::{fmt, iter};
 
 use mpc::{
     circuits::{join_circuits_all, IntShare, WrappedShare},
-    executor::{self, MpcExecutionContext, MpcExecutionError},
+    executor::{self, MpcExecutionContext, MpcExecutionError, MpcExecutionStats},
     ff::Field,
     MpcEngine, MpcField,
 };
@@ -52,7 +52,7 @@ pub async fn compute_private_matching<Engine, Error, const N: usize>(
     engine: Engine,
     preferences: PreferenceVec,
     max_preference_value: u64,
-) -> Result<usize, MatchingError<Error>>
+) -> Result<(usize, MpcExecutionStats), MatchingError<Error>>
 where
     Engine: 'static + Send + MpcEngine<Error = Error>,
     Error: 'static + Send,
@@ -72,7 +72,7 @@ where
         .chain(preferences.into_iter().map(Engine::Field::from))
         .collect();
 
-    let (circuit_output, _) =
+    let (circuit_output, stats) =
         executor::run_circuit_in_background(engine, inputs, move |ctx, inputs| {
             Box::pin(matching_circuit::<_, N>(ctx, inputs, max_preference_value))
         })
@@ -84,7 +84,7 @@ where
     let output = (outputs[party_id] - output_mask).truncated() as usize;
 
     if output < num_parties {
-        Ok(output as usize)
+        Ok((output as usize, stats))
     } else {
         Err(MatchingError::InvalidOutput)
     }
