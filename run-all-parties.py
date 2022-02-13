@@ -4,7 +4,6 @@ import argparse
 import json
 import os
 import subprocess
-import sys
 import threading
 
 
@@ -18,7 +17,7 @@ def redirect_to_stdout(party_id, stream):
             print(f'[{party_id}] {line}', end='')
 
 
-parser = argparse.ArgumentParser(description='Run test instances on localhost.')
+parser = argparse.ArgumentParser(description='Run all nodes using generated configuration.')
 parser.add_argument('--dir', type=str, default='test-env', help='test-env directory')
 args = parser.parse_args()
 

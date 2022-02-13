@@ -60,9 +60,13 @@ async fn main() {
     let dealer =
         PrecomputedSpdzDealer::from_file(options.precomp).expect("Invalid precomputed SPDZ data");
 
+    println!("Waiting for peers...");
+
     let connection = transport::connect_multiparty(&config, private_key, party_id)
         .await
         .expect("Multiparty connection failed");
+
+    println!("All peers connected, computing matching...");
 
     let engine: SpdzEngine<Fp, _, _> = SpdzEngine::new(dealer, connection);
 
