@@ -11,7 +11,9 @@ We want to find a matching that minimizes the average cost, without revealing th
 
 ## How?
 
-Oblivious minimum cost maximum flow algorithm running under SPDZ protocol.
+Oblivious minimum cost maximum flow algorithm running under SPDZ protocol
+[[1](https://eprint.iacr.org/2011/535.pdf),[2](https://eprint.iacr.org/2012/642.pdf)],
+based on ideas from [[3](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.298.2902&rep=rep1&type=pdf)].
 
 ## What's included?
 
@@ -34,3 +36,10 @@ Oblivious minimum cost maximum flow algorithm running under SPDZ protocol.
 4. Run all test nodes locally: `./run-all-parties.py`
 
 You can run test nodes individually using `./run-party.py`, run scripts with `--help` for more information.
+
+## References
+
+[1] [Multiparty Computation from Somewhat Homomorphic Encryption](https://eprint.iacr.org/2011/535.pdf) \
+[2] [Practical Covertly Secure MPC for Dishonest Majority – or: Breaking the SPDZ Limits](https://eprint.iacr.org/2012/642.pdf) \
+[3] [Data-oblivious graph algorithms for secure computation and outsourcing](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.298.2902&rep=rep1&type=pdf) \
+[4] [Improved Primitives for Secure Multiparty Integer Computation](https://citeseerx.ist.psu.edu/viewdoc/download?doi=10.1.1.220.9499&rep=rep1&type=pdf)
