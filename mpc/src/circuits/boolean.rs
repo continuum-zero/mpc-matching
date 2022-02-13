@@ -1,6 +1,6 @@
 use ff::Field;
 
-use crate::{executor::MpcExecutionContext, MpcDealer, MpcEngine, MpcShare};
+use crate::{executor::MpcExecution, MpcDealer, MpcEngine, MpcShare};
 
 use super::{mul, WrappedShare};
 
@@ -29,7 +29,7 @@ impl<T: MpcShare> WrappedShare for BitShare<T> {
 
 impl<T: MpcShare> BitShare<T> {
     /// Wrap plaintext boolean value.
-    pub fn from_plain<E>(ctx: &MpcExecutionContext<E>, value: bool) -> Self
+    pub fn from_plain<E>(ctx: &MpcExecution<E>, value: bool) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -42,7 +42,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Sharing of one.
-    pub fn one<E>(ctx: &MpcExecutionContext<E>) -> Self
+    pub fn one<E>(ctx: &MpcExecution<E>) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -50,7 +50,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Sharing of random bit.
-    pub fn random<E>(ctx: &MpcExecutionContext<E>) -> Self
+    pub fn random<E>(ctx: &MpcExecution<E>) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -59,7 +59,7 @@ impl<T: MpcShare> BitShare<T> {
 
     /// Open share. Requires communication.
     /// Warning: Integrity checks may be deferred (like in SPDZ protocol). Use with care.
-    pub async fn open_unchecked<E>(self, ctx: &MpcExecutionContext<E>) -> bool
+    pub async fn open_unchecked<E>(self, ctx: &MpcExecution<E>) -> bool
     where
         E: MpcEngine<Share = T>,
     {
@@ -67,7 +67,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical negation.
-    pub fn not<E>(self, ctx: &MpcExecutionContext<E>) -> Self
+    pub fn not<E>(self, ctx: &MpcExecution<E>) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -75,7 +75,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical AND.
-    pub async fn and<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    pub async fn and<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -83,7 +83,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical OR.
-    pub async fn or<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    pub async fn or<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -91,7 +91,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Logical XOR.
-    pub async fn xor<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    pub async fn xor<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -101,7 +101,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Ternary IF operator.
-    pub async fn select<E, Q>(self, ctx: &MpcExecutionContext<E>, true_val: Q, false_val: Q) -> Q
+    pub async fn select<E, Q>(self, ctx: &MpcExecution<E>, true_val: Q, false_val: Q) -> Q
     where
         E: MpcEngine<Share = T>,
         Q: WrappedShare<Item = T>,
@@ -111,7 +111,7 @@ impl<T: MpcShare> BitShare<T> {
     }
 
     /// Returns (x, y) if self is 0, or (y, x) if self is 1.
-    pub async fn swap_if<E, Q>(self, ctx: &MpcExecutionContext<E>, x: Q, y: Q) -> (Q, Q)
+    pub async fn swap_if<E, Q>(self, ctx: &MpcExecution<E>, x: Q, y: Q) -> (Q, Q)
     where
         E: MpcEngine<Share = T>,
         Q: WrappedShare<Item = T>,

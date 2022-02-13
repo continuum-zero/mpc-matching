@@ -1,11 +1,11 @@
+use mpc::{circuits::IntShare, executor::MpcExecution, MpcEngine};
 use ndarray::ArrayView2;
-use mpc::{circuits::IntShare, executor::MpcExecutionContext, MpcEngine};
 
 use super::{FlowError, FlowNetwork};
 
 /// Given a square matrix of costs, compute perfect bipartite matching with smallest total cost.
 pub async fn min_cost_bipartite_matching<'a, E: MpcEngine + 'a, const N: usize>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     costs: ArrayView2<'a, IntShare<E::Share, N>>,
 ) -> Result<(Vec<IntShare<E::Share, N>>, Vec<IntShare<E::Share, N>>), FlowError> {
     let n = costs.shape()[0];

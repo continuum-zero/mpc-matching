@@ -43,7 +43,7 @@ pub struct MpcExecutionStats {
 }
 
 /// MPC async circuit execution context.
-pub struct MpcExecutionContext<Engine: MpcEngine> {
+pub struct MpcExecution<Engine: MpcEngine> {
     engine: RefCell<Engine>,
     open_buffer: RoundCommandBuffer<Engine::Share, Engine::Field>,
     force_integrity_check: Cell<bool>,
@@ -51,11 +51,11 @@ pub struct MpcExecutionContext<Engine: MpcEngine> {
     cached_two: Engine::Share,
 }
 
-impl<Engine: MpcEngine> MpcExecutionContext<Engine> {
+impl<Engine: MpcEngine> MpcExecution<Engine> {
     /// Create new MPC circuit executor.
     fn new(mut engine: Engine) -> Self {
         let one = engine.dealer().share_plain(ff::Field::one());
-        MpcExecutionContext {
+        MpcExecution {
             engine: RefCell::new(engine),
             open_buffer: RoundCommandBuffer::new(),
             force_integrity_check: Cell::new(false),
@@ -106,7 +106,7 @@ pub async fn run_circuit<Engine, F, T>(
 where
     Engine: MpcEngine,
     F: FnOnce(
-        &'_ MpcExecutionContext<Engine>,
+        &'_ MpcExecution<Engine>,
         Vec<Vec<Engine::Share>>,
     ) -> Pin<Box<dyn Future<Output = T> + '_>>,
 {
@@ -114,7 +114,7 @@ where
         .process_inputs(inputs.iter().copied().collect())
         .await?;
 
-    let ctx = MpcExecutionContext::new(engine);
+    let ctx = MpcExecution::new(engine);
     let mut future = circuit_fn(&ctx, input_shares);
     let mut stats = MpcExecutionStats::default();
 
@@ -162,7 +162,7 @@ where
     F: 'static
         + Send
         + FnOnce(
-            &'_ MpcExecutionContext<Engine>,
+            &'_ MpcExecution<Engine>,
             Vec<Vec<Engine::Share>>,
         ) -> Pin<Box<dyn Future<Output = T> + '_>>,
 {

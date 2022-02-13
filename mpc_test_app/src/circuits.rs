@@ -2,7 +2,7 @@ use std::{fmt, iter};
 
 use mpc::{
     circuits::{join_circuits_all, IntShare, WrappedShare},
-    executor::{self, MpcExecutionContext, MpcExecutionError, MpcExecutionStats},
+    executor::{self, MpcExecution, MpcExecutionError, MpcExecutionStats},
     ff::Field,
     MpcEngine, MpcField,
 };
@@ -92,7 +92,7 @@ where
 
 /// Circuit used by `compute_private_matching`. Computes matching and returns masked outputs of all parties.
 async fn matching_circuit<E: MpcEngine, const N: usize>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     inputs: Vec<Vec<E::Share>>,
     max_preference_value: u64,
 ) -> Result<Vec<E::Field>, MatchingError<E::Error>> {
@@ -137,7 +137,7 @@ async fn matching_circuit<E: MpcEngine, const N: usize>(
 
 /// Compute matrix of costs for each possible pair.
 async fn get_cost_matrix<E: MpcEngine, const N: usize>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     left_preferences: &[Vec<IntShare<E::Share, N>>],
     right_preferences: &[Vec<IntShare<E::Share, N>>],
 ) -> Array2<IntShare<E::Share, N>> {
@@ -152,7 +152,7 @@ async fn get_cost_matrix<E: MpcEngine, const N: usize>(
 
 /// Returns square of L2 distance between preference vectors.
 async fn compare_preferences<E: MpcEngine, const N: usize>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     left: &[IntShare<E::Share, N>],
     right: &[IntShare<E::Share, N>],
 ) -> IntShare<E::Share, N> {

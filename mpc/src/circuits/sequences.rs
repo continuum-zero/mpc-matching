@@ -2,7 +2,7 @@ use std::future::Future;
 
 use itertools::Itertools;
 
-use crate::{executor::MpcExecutionContext, MpcEngine};
+use crate::{executor::MpcExecution, MpcEngine};
 
 use super::{join_circuits_all, mul};
 
@@ -46,7 +46,7 @@ where
 /// Compute product of given sequence of shares.
 /// Cost: n-1 multiplications, log_2(n) communication rounds, where n is sequence length.
 pub async fn product<E: MpcEngine>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     elems: impl IntoIterator<Item = E::Share>,
 ) -> E::Share {
     fold_tree(elems, ctx.one(), |a, b| mul(ctx, a, b)).await

@@ -1,13 +1,11 @@
-use crate::{
-    circuits::mul, executor::MpcExecutionContext, join_circuits, MpcEngine, MpcField, MpcShare,
-};
+use crate::{circuits::mul, executor::MpcExecution, join_circuits, MpcEngine, MpcField, MpcShare};
 
 use super::{fold_tree, BitShare, WrappedShare};
 
 /// Compare plaintext unsigned integer with a hidden integer, provided sharings of its individual bits.
 /// Only the first `rhs.len()` bits are considered. Returns pair of bits `([lhs < rhs], [lhs > rhs])`.
 pub async fn bitwise_compare<E: MpcEngine>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     lhs: u64,
     rhs: &[BitShare<E::Share>],
 ) -> (BitShare<E::Share>, BitShare<E::Share>) {
@@ -51,7 +49,7 @@ pub async fn bitwise_compare<E: MpcEngine>(
 /// Check equality of plaintext unsigned integer with a hidden integer, provided sharings of its individual bits.
 /// Only the first `rhs.len()` bits are considered.
 pub async fn bitwise_equal<E: MpcEngine>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     lhs: u64,
     rhs: &[BitShare<E::Share>],
 ) -> BitShare<E::Share> {

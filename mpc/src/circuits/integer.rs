@@ -3,9 +3,7 @@ use std::{
     ops::{Add, AddAssign, Mul, MulAssign, Neg, Sub, SubAssign},
 };
 
-use crate::{
-    executor::MpcExecutionContext, join_circuits, MpcDealer, MpcEngine, MpcField, MpcShare,
-};
+use crate::{executor::MpcExecution, join_circuits, MpcDealer, MpcEngine, MpcField, MpcShare};
 
 use super::{bitwise_compare, bitwise_equal, mul, BitShare, WrappedShare};
 
@@ -39,12 +37,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Clamp value and wrap. For overflown inputs, privacy is compromised
     /// and exact value is undefined, but is clamped to be in valid range.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
-    pub async fn wrap_clamped<E>(
-        ctx: &MpcExecutionContext<E>,
-        raw: T,
-        low: Self,
-        high: Self,
-    ) -> Self
+    pub async fn wrap_clamped<E>(ctx: &MpcExecution<E>, raw: T, low: Self, high: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -64,7 +57,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Wrap plain value. Input must be an N-bit signed integer.
-    pub fn from_plain<E>(ctx: &MpcExecutionContext<E>, value: i64) -> Self
+    pub fn from_plain<E>(ctx: &MpcExecution<E>, value: i64) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -77,7 +70,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Sharing of one.
-    pub fn one<E>(ctx: &MpcExecutionContext<E>) -> Self
+    pub fn one<E>(ctx: &MpcExecution<E>) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -85,7 +78,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Sharing of two.
-    pub fn two<E>(ctx: &MpcExecutionContext<E>) -> Self
+    pub fn two<E>(ctx: &MpcExecution<E>) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -93,7 +86,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Sharing of uniformly random N-bit signed integer.
-    pub fn random<E>(ctx: &MpcExecutionContext<E>) -> Self
+    pub fn random<E>(ctx: &MpcExecution<E>) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -108,7 +101,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Open share. Requires communication.
     /// Warning: Integrity checks may be deferred (like in SPDZ protocol). Use with care.
-    pub async fn open_unchecked<E>(self, ctx: &MpcExecutionContext<E>) -> i64
+    pub async fn open_unchecked<E>(self, ctx: &MpcExecution<E>) -> i64
     where
         E: MpcEngine<Share = T>,
     {
@@ -125,7 +118,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     }
 
     /// Multiply two integer shares.
-    pub async fn mul<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> Self
+    pub async fn mul<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -136,7 +129,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
     /// This method is guaranteed to return k-bit integer even for invalid inputs.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
-    pub async fn mod_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
+    pub async fn mod_power_of_two<E>(self, ctx: &MpcExecution<E>, k: usize) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -171,7 +164,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Floor division of N-bit integer by 2^k.
     /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
-    pub async fn div_power_of_two<E>(self, ctx: &MpcExecutionContext<E>, k: usize) -> Self
+    pub async fn div_power_of_two<E>(self, ctx: &MpcExecution<E>, k: usize) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -183,7 +176,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Test if value is less than zero.
     /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
-    pub async fn less_than_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
+    pub async fn less_than_zero<E>(self, ctx: &MpcExecution<E>) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -193,7 +186,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Test if value is greater than zero.
     /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
-    pub async fn greater_than_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
+    pub async fn greater_than_zero<E>(self, ctx: &MpcExecution<E>) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -202,7 +195,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Test if self < rhs.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
-    pub async fn less<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    pub async fn less<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -211,7 +204,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Test if self > rhs.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
-    pub async fn greater<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    pub async fn greater<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -220,7 +213,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Test if self <= rhs.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
-    pub async fn less_eq<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    pub async fn less_eq<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -229,7 +222,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Test if self >= rhs.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
-    pub async fn greater_eq<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    pub async fn greater_eq<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -239,7 +232,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
     /// Test if value is equal to zero.
     /// This operation supports values in a larger range, namely `[-2^N+1; 2^N-1]`.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits.
-    pub async fn equal_zero<E>(self, ctx: &MpcExecutionContext<E>) -> BitShare<T>
+    pub async fn equal_zero<E>(self, ctx: &MpcExecution<E>) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -264,7 +257,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Test if self == rhs.
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
-    pub async fn equal<E>(self, ctx: &MpcExecutionContext<E>, rhs: Self) -> BitShare<T>
+    pub async fn equal<E>(self, ctx: &MpcExecution<E>, rhs: Self) -> BitShare<T>
     where
         E: MpcEngine<Share = T>,
     {
@@ -273,7 +266,7 @@ impl<T: MpcShare, const N: usize> IntShare<T, N> {
 
     /// Returns max(low, min(high, self)).
     /// Warning: guarantees only statistical privacy with `Field::SAFE_BITS - N - 1` bits, input cannot be overflown.
-    pub async fn clamp<E>(self, ctx: &MpcExecutionContext<E>, low: Self, high: Self) -> Self
+    pub async fn clamp<E>(self, ctx: &MpcExecution<E>, low: Self, high: Self) -> Self
     where
         E: MpcEngine<Share = T>,
     {
@@ -370,7 +363,7 @@ fn bits_to_raw_share<T: MpcShare>(bits: &[BitShare<T>]) -> T {
 /// Returns sharing of a random integer X, sharing of X mod 2^k and separate sharings of the first k bits.
 /// The integer X has Field::SAFE_BITS bits and is provided by dealer.
 fn random_bit_mask<E: MpcEngine>(
-    ctx: &MpcExecutionContext<E>,
+    ctx: &MpcExecution<E>,
     k: usize,
 ) -> (E::Share, E::Share, Vec<BitShare<E::Share>>) {
     let high_part = ctx.engine().dealer().next_uint(E::Field::SAFE_BITS - k);

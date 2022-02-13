@@ -119,12 +119,12 @@ pub mod testing {
     pub type MockEngine = crate::plaintext::PlainMpcEngine<MockField>;
 
     /// Execution context for circuits tests.
-    pub type MockExecutionContext = crate::executor::MpcExecutionContext<MockEngine>;
+    pub type MockExecution = crate::executor::MpcExecution<MockEngine>;
 
     /// Test async circuit in mock plaintext environment.
     pub async fn test_circuit<F>(circuit_fn: F)
     where
-        F: FnOnce(&'_ MockExecutionContext) -> Pin<Box<dyn Future<Output = ()> + '_>>,
+        F: FnOnce(&'_ MockExecution) -> Pin<Box<dyn Future<Output = ()> + '_>>,
     {
         crate::executor::run_circuit(MockEngine::new(), &[], |ctx, _| circuit_fn(ctx))
             .await

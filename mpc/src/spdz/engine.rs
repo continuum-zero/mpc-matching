@@ -372,7 +372,7 @@ mod tests {
 
     use crate::{
         circuits::{self, join_circuits_all},
-        executor::{self, MpcExecutionContext},
+        executor::{self, MpcExecution},
         spdz::{FakeSpdzDealer, SpdzShare},
         transport::{self, BincodeDuplex},
     };
@@ -387,7 +387,7 @@ mod tests {
         T: PartialEq + Eq + Debug,
         F: Copy
             + Fn(
-                &'_ MpcExecutionContext<MockSpdzEngine>,
+                &'_ MpcExecution<MockSpdzEngine>,
                 Vec<Vec<SpdzShare<Fp>>>,
             ) -> Pin<Box<dyn Future<Output = T> + '_>>,
     {
