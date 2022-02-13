@@ -18,7 +18,7 @@ const NUM_BITS: usize = 32;
 /// Maximum value of preference vector element. Minimum is 0.
 const MAX_PREFERENCE_VALUE: u64 = 100;
 
-/// Test app.
+/// MPC dating app for gigachads.
 #[derive(FromArgs, Debug)]
 struct Options {
     /// path to network configuration file

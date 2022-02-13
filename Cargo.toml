@@ -1,11 +1,8 @@
 [workspace]
 
 members = [
-    "mpc",
-    "mpc_flow",
     "dealer",
-    "mpc_test_app",
+    "matcher",
+    "mpc_flow",
+    "mpc",
 ]
-
-[profile.release]
-debug = 1

@@ -27,13 +27,13 @@ with open(config_path, 'r') as config_file:
     config = json.load(config_file)
     num_parties = len(config['parties'])
 
-if os.system('cargo build --release -p mpc_test_app') != 0:
+if os.system('cargo build --release -p matcher') != 0:
     exit(1)
 
 for party_id in range(num_parties):
     process = subprocess.Popen(
         [
-            './target/release/mpc_test_app',
+            './target/release/matcher',
             '--config', f'{config_path}',
             '--id', f'{party_id}',
             '--private-key', f'{args.dir}/node{party_id}/private.key',

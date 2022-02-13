@@ -9,11 +9,11 @@ parser.add_argument('--id', type=int, required=True, help='party ID')
 parser.add_argument('--preferences', type=str, required=True, help='preference vector')
 args = parser.parse_args()
 
-if os.system('cargo build --release -p mpc_test_app') != 0:
+if os.system('cargo build --release -p matcher') != 0:
     exit(1)
 
 os.system(
-    f'./target/release/mpc_test_app ' +
+    f'./target/release/matcher ' +
     f'--config {args.dir}/common/config.json ' +
     f'--id {args.id} ' +
     f'--private-key {args.dir}/node{args.id}/private.key ' +
