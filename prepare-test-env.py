@@ -6,7 +6,7 @@ import os
 
 parser = argparse.ArgumentParser(description='Generate config and self-signed certificates for testing.')
 parser.add_argument('--dir', type=str, default='test-env', help='target directory')
-parser.add_argument('--parties', type=int, default=10, help='number of parties')
+parser.add_argument('--parties', type=int, default=16, help='number of parties')
 parser.add_argument('--address', type=str, default='127.0.0.1', help='address on which all parties listen')
 parser.add_argument('--base-port', type=int, default=5000, help='port of the first party')
 args = parser.parse_args()
@@ -37,4 +37,4 @@ for i in range(args.parties):
         exit(1)
 
 with open(f'{args.dir}/common/config.json', 'w') as config_file:
-    config_file.write(json.dumps(config, indent=4))
+    json.dump(config, config_file, indent=4)
